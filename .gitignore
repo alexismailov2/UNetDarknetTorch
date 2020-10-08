@@ -1,0 +1,7 @@
+.idea
+build_host
+cmake-build-debug
+cmake-build-release
+checkpoints_*
+dataset
+downloads
