@@ -377,7 +377,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    std::map<std::string, cv::Scalar> colorsToClass;
    if (!params["--colors-to-class-map"].empty() && (params["--colors-to-class-map"].size() % 4) == 0)
    {
-      for (auto colorToClassIt = std::next(params["--colors-to-class-map"].cbegin(), 4);
+      for (auto colorToClassIt = params["--colors-to-class-map"].cbegin();
            colorToClassIt != params["--colors-to-class-map"].cend();
            colorToClassIt += 4)
       {

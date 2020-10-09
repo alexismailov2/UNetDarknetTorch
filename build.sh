@@ -9,8 +9,10 @@ if [ -d "./downloads/libtorch" ]; then
 else
     mkdir -p downloads
     cd downloads
-    wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.6.0%2Bcpu.zip
-    unzip libtorch-cxx11-abi-shared-with-deps-1.6.0+cpu.zip
+    #wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.6.0%2Bcpu.zip
+    wget https://download.pytorch.org/libtorch/cu102/libtorch-cxx11-abi-shared-with-deps-1.6.0.zip
+    #unzip libtorch-cxx11-abi-shared-with-deps-1.6.0+cpu.zip
+    unzip libtorch-cxx11-abi-shared-with-deps-1.6.0.zip
     cd ..
 fi
   torch_path=./downloads/libtorch
