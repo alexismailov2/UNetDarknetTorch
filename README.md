@@ -1,4 +1,4 @@
-# UNetTorchTrain
+# UNet training with libtorch C++
 Project for training unet with libtorch in darknet format.
 
 # To avoid spending time on reading next one just try to run build.sh script for building the project:
