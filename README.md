@@ -18,7 +18,8 @@ Hope you know how to do that...
 ## 2. First of all download libtorch for your system:
 Consider that there is two different versions with CUDA support and without.
 You should use needed version according to your hardware support CUDA and CUDA tool kit installed previous.
-This reference describe how to install CUDA and all info about needed hardware for it.
+Next reference describe how to install CUDA and all info about needed hardware for it:
+- https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
 
 After you will be ready to decide which version you will need download one of them:
 - With CUDA - https://download.pytorch.org/libtorch/cu102/libtorch-cxx11-abi-shared-with-deps-1.6.0.zip
