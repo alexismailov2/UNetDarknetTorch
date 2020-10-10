@@ -1,6 +1,6 @@
 #include <UNet/UNetDataset.hpp>
 
-#include <experimental/filesystem>
+#include <filesystem>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -9,7 +9,7 @@ namespace {
 
 void LabelsEnumerator(std::string const& annotationDir, std::function<void(std::string const&, std::set<std::string> const&)> callback)
 {
-   for (auto file : std::experimental::filesystem::directory_iterator(annotationDir))
+   for (auto file : std::filesystem::directory_iterator(annotationDir))
    {
       boost::property_tree::ptree pt;
       boost::property_tree::read_json(file.path().string(), pt);
@@ -168,7 +168,7 @@ UNetDataset::UNetDataset(std::vector<std::tuple<std::string, std::string>> const
 {
    for (auto const& datasetDirPath : datasetDirsPath)
    {
-      for (auto& p : std::experimental::filesystem::directory_iterator(std::get<0>(datasetDirPath)))
+      for (auto& p : std::filesystem::directory_iterator(std::get<0>(datasetDirPath)))
       {
          _imagesAndMasks.emplace_back(std::make_pair(p.path().string(), std::get<1>(datasetDirPath) + "/" + p.path().filename().string()));
          auto const& imageAndMask = _imagesAndMasks.back();

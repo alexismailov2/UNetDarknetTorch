@@ -20,11 +20,13 @@ else()
 endif()
 
 find_package(TIFF REQUIRED)
+find_package(Boost REQUIRED)
 
 file(GLOB_RECURSE PUBLIC_INCLUDES include/*.hpp)
 
 include_directories(
    include
+   ${Boost_INCLUDE_DIRS}
    ${OpenCV_INCLUDE_DIRS})
 
 add_executable(${PROJECT_NAME}2d
@@ -36,14 +38,14 @@ add_executable(${PROJECT_NAME}2d
 target_compile_features(${PROJECT_NAME}2d PUBLIC cxx_range_for)
 
 set(STD_FILESYSTEM)
-if (NOT APPLE)
+if (NOT APPLE AND NOT WIN32)
    set(STD_FILESYSTEM stdc++fs)
 endif()
 
 target_link_libraries(${PROJECT_NAME}2d
    ${TORCH_LIBRARIES}
    ${OpenCV_LIBS}
-   ${TIFF_LIBRARIES}
+   ${TIFF_LIB}
    ${STD_FILESYSTEM})
 
 # Microfost Visual Studio build system very sophisticated and needed to be apologized for that...

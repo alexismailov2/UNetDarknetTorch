@@ -3,7 +3,7 @@
 
 #include <torch/script.h>
 
-#include <experimental/filesystem>
+#include <filesystem>
 
 #include <boost/algorithm/string/split.hpp>
 
@@ -185,7 +185,7 @@ auto CountingLabeledObjectsInMultipleDatasetFolders(std::vector<std::string> con
    std::map<std::string, uint32_t> countResult;
    for (auto const& datasetFolderPath : datasetFolderPathes)
    {
-      for (auto file : std::experimental::filesystem::directory_iterator(datasetFolderPath))
+      for (auto file : std::filesystem::directory_iterator(datasetFolderPath))
       {
          CountingLabeledObjects(countResult, file.path().string(), true);
       }
@@ -200,8 +200,8 @@ void ConvertPolygonsToMaskInMultipleDatasetFolders(std::vector<std::pair<std::st
 {
    for (auto datasetFolderPath : datasetFolderPathes)
    {
-      std::experimental::filesystem::create_directories(datasetFolderPath.second);
-      for (auto file : std::experimental::filesystem::directory_iterator(datasetFolderPath.first))
+      std::filesystem::create_directories(datasetFolderPath.second);
+      for (auto file : std::filesystem::directory_iterator(datasetFolderPath.first))
       {
          cv::Mat mask = ConvertPolygonsToMask(file.path().string(), colorToClass);
          if (skipPredicat(mask))
@@ -222,8 +222,8 @@ void ConvertImagesInMultipleDatasetFolders(std::vector<std::pair<std::string, st
 {
    for (auto datasetFolderPath : datasetFolderPathes)
    {
-      std::experimental::filesystem::create_directories(datasetFolderPath.second);
-      for (auto file : std::experimental::filesystem::directory_iterator(datasetFolderPath.first))
+      std::filesystem::create_directories(datasetFolderPath.second);
+      for (auto file : std::filesystem::directory_iterator(datasetFolderPath.first))
       {
          cv::Mat image = cv::imread(file.path().string());
          if (skipPredicat(image))
@@ -255,9 +255,9 @@ void TestDatasetCreateList(std::pair<std::string, std::string> const& outputDirs
                            std::vector<cv::Scalar> const& classColors,
                            size_t count = 100)
 {
-   std::experimental::filesystem::create_directories(outputDirs.first);
-   std::experimental::filesystem::create_directories(outputDirs.second);
-   for (auto current = 0; current < count; ++current)
+   std::filesystem::create_directories(outputDirs.first);
+   std::filesystem::create_directories(outputDirs.second);
+   for (auto current = 0U; current < count; ++current)
    {
       auto datasetTest = TestDatasetCreate(size, classColors);
       datasetTest.first *= 255;
@@ -435,7 +435,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       std::cout << "Skip training since epochs option absent count equal to 0!" << std::endl;
       return;
    }
-   const int64_t kNumberOfEpochs = std::stoi(params["--epochs"][0]);
+   const auto kNumberOfEpochs = std::stoi(params["--epochs"][0]);
 
    if (params["--checkpoints-output"].empty())
    {
@@ -454,7 +454,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       throw_an_error("Train directories should be even count!\n");
       return;
    }
-   for (auto i = 0; i < params["--train-directories"].size(); i += 2)
+   for (auto i = 0U; i < params["--train-directories"].size(); i += 2)
    {
       trainDirectories.push_back(std::make_tuple(params["--train-directories"][i],
                                                  params["--train-directories"][i + 1]));
@@ -466,7 +466,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       throw_an_error("--valid-directories should be even count!\n");
       return;
    }
-   for (auto i = 0; i < params["--valid-directories"].size(); i += 2)
+   for (auto i = 0U; i < params["--valid-directories"].size(); i += 2)
    {
       validDirectories.push_back(std::make_tuple(params["--valid-directories"][i], params["--valid-directories"][i + 1]));
    }
@@ -530,7 +530,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(0.00001));
    std::map<std::string, std::vector<cv::Point>> trainingLossData;
 
-   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch)
+   for (size_t epoch = 1U; epoch <= kNumberOfEpochs; ++epoch)
    {
       train(epoch, model, device, *train_loader, optimizer, [](int32_t count, int32_t current) {
         if ((current % (count / 10)) == 0)
@@ -546,14 +546,14 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         int sz[] = {1, static_cast<int>(classColors.size()), size.width, size.height};
         cv::Mat predictMat = cv::Mat(4, sz, CV_32FC1, predict.contiguous().cpu().data_ptr());
         auto masks = toClassesMapsThreshold(predictMat, {}, thresholds);
-        for (auto i = 0; i < masks.size(); ++i)
+        for (auto i = 0U; i < masks.size(); ++i)
         {
            cv::imshow(std::string("Predict_") + std::to_string(i), masks[i]);
         }
 
         predictMat = cv::Mat(4, sz, CV_32FC1, targets.contiguous().cpu().data_ptr());
         masks = toClassesMapsThreshold(predictMat, {}, thresholds);
-        for (auto i = 0; i < masks.size(); ++i)
+        for (auto i = 0U; i < masks.size(); ++i)
         {
            cv::imshow(std::string("Target_") + std::to_string(i), masks[i]);
         }
@@ -569,7 +569,8 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         {
            validationLossData[item.first].emplace_back(static_cast<int>((static_cast<float>(500)/kNumberOfEpochs) * epoch),
                                                        500 - (item.second * 500));
-           iterateOverLinesInContours(validationLossData[item.first], [&](auto const& p1, auto const& p2){
+           // MSVC lead to error when in lambda below was auto const& parameters(for x86 compiler)
+           iterateOverLinesInContours(validationLossData[item.first], [&](cv::Point const& p1, cv::Point const& p2){
              cv::line(validationChart, p1, p2, chartColors[item.first], 3);
            });
            cv::imshow(std::string("Validation chart"), validationChart);
@@ -581,13 +582,13 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         if (metrics["loss"] < minLoss)
         {
            minLoss = metrics["loss"];
-           std::experimental::filesystem::remove(outputDirectory + "/" + "best_" + std::to_string(bestEpoch) + ".weights");
+           std::filesystem::remove(outputDirectory + "/" + "best_" + std::to_string(bestEpoch) + ".weights");
            bestEpoch = epoch;
            model->save_weights(outputDirectory + "/" + "best_" + std::to_string(epoch) + ".weights");
            std::cout << "Best epoch: " << epoch << std::endl;
         }
       });
-      std::experimental::filesystem::create_directory(outputDirectory);
+      std::filesystem::create_directory(outputDirectory);
       model->save_weights(outputDirectory + "/" + std::to_string(epoch) + ".weights");
    }
 }

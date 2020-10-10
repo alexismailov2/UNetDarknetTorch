@@ -10,7 +10,7 @@
 #include <stack>
 #include <string>
 #include <fstream>
-#include <experimental/filesystem>
+#include <filesystem>
 
 struct SwishImpl : torch::nn::Module
 {
@@ -98,8 +98,8 @@ public:
        {
           _path += ".cfg";
        }
-       if (!std::experimental::filesystem::exists(_path) &&
-           std::experimental::filesystem::exists("cfg/" + _path))
+       if (!std::filesystem::exists(_path) &&
+           std::filesystem::exists("cfg/" + _path))
        {
           _path = "cfg/" + _path;
        }
@@ -157,7 +157,7 @@ public:
        ModuleList moduleList;
 
        bool upsamplePrev = false;
-       for (auto i = 1; i < mdefs.size(); ++i)
+       for (auto i = 1U; i < mdefs.size(); ++i)
        {
           auto& mdef = mdefs[i].second;
           auto const& type = mdefs[i].first;
@@ -348,7 +348,7 @@ struct DarknetImpl : torch::nn::Module
 
       auto img_size = cv::Size(x.size(2), x.size(3));
       std::vector<torch::Tensor> outs;
-      for (auto i = 0; i < _moduleList->size(); ++i)
+      for (auto i = 0U; i < _moduleList->size(); ++i)
       {
          if (auto featureConcat = std::dynamic_pointer_cast<FeatureConcatImpl>(_moduleList[i]))
          {
@@ -379,10 +379,10 @@ struct DarknetImpl : torch::nn::Module
       int64_t seen = {};
       file.read((char*)&version, sizeof(int32_t)*3);
       file.read((char*)&seen, sizeof(int64_t));
-      for (int i = 0; i < _moduleList->size(); ++i)
+      for (auto i = 0U; i < _moduleList->size(); ++i)
       {
          auto submodules = _moduleList[i]->modules(false);
-         for (auto j = 0; j < submodules.size(); j++)
+         for (auto j = 0U; j < submodules.size(); j++)
          {
             //std::cout << submodules[j]->name() << std::endl;
             if (submodules[j]->name() == "torch::nn::Conv2dImpl")
@@ -437,10 +437,10 @@ struct DarknetImpl : torch::nn::Module
       int64_t seen = {0};
       file.write((char*)&version, sizeof(int32_t)*3);
       file.write((char*)&seen, sizeof(int64_t));
-      for (int i = 0; i < _moduleList->size(); ++i)
+      for (auto i = 0U; i < _moduleList->size(); ++i)
       {
          auto submodules = _moduleList[i]->modules(false);
-         for (auto j = 0; j < submodules.size(); j++)
+         for (auto j = 0U; j < submodules.size(); j++)
          {
             //std::cout << submodules[j]->name() << std::endl;
             if (submodules[j]->name() == "torch::nn::Conv2dImpl")
