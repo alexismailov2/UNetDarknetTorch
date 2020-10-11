@@ -619,7 +619,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    }
 
    bool isGrayscale = false;
-   if (params["--grayscale"].empty())
+   if (!params["--grayscale"].empty())
    {
       isGrayscale = (params["--grayscale"][0] == "yes");
    }
