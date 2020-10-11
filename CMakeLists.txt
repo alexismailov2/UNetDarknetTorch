@@ -52,6 +52,14 @@ target_link_libraries(${PROJECT_NAME}2d
    ${TIFF_LIB}
    ${STD_FILESYSTEM})
 
+add_executable(grubcut
+        src/grubcut.cpp)
+
+target_link_libraries(grubcut
+        ${OpenCV_LIBS}
+        ${TIFF_LIB}
+        ${STD_FILESYSTEM})
+
 # Microfost Visual Studio build system very sophisticated and needed to be apologized for that...
 # Not tested
 #
