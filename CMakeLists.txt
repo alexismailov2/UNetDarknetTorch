@@ -42,10 +42,14 @@ if (NOT APPLE AND NOT WIN32)
    set(STD_FILESYSTEM stdc++fs)
 endif()
 
+if(NOT MSVC)
+   set(TIFF_LIB ${TIFF_LIBRARY})
+endif()
+
 target_link_libraries(${PROJECT_NAME}2d
    ${TORCH_LIBRARIES}
    ${OpenCV_LIBS}
-   ${TIFF_LIBRARY}
+   ${TIFF_LIB}
    ${STD_FILESYSTEM})
 
 # Microfost Visual Studio build system very sophisticated and needed to be apologized for that...

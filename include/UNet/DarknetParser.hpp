@@ -11,7 +11,7 @@
 #include <string>
 #include <fstream>
 
-#ifdef __MSVC__
+#ifdef _MSC_VER
 #include <filesystem>
 namespace fs = std::filesystem;
 #else
