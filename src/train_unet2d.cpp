@@ -3,7 +3,13 @@
 
 #include <torch/script.h>
 
+#ifdef __MSVC__
 #include <filesystem>
+namespace fs = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
 
 #include <boost/algorithm/string/split.hpp>
 
@@ -185,7 +191,7 @@ auto CountingLabeledObjectsInMultipleDatasetFolders(std::vector<std::string> con
    std::map<std::string, uint32_t> countResult;
    for (auto const& datasetFolderPath : datasetFolderPathes)
    {
-      for (auto file : std::filesystem::directory_iterator(datasetFolderPath))
+      for (auto file : fs::directory_iterator(datasetFolderPath))
       {
          CountingLabeledObjects(countResult, file.path().string(), true);
       }
@@ -200,8 +206,8 @@ void ConvertPolygonsToMaskInMultipleDatasetFolders(std::vector<std::pair<std::st
 {
    for (auto datasetFolderPath : datasetFolderPathes)
    {
-      std::filesystem::create_directories(datasetFolderPath.second);
-      for (auto file : std::filesystem::directory_iterator(datasetFolderPath.first))
+      fs::create_directories(datasetFolderPath.second);
+      for (auto file : fs::directory_iterator(datasetFolderPath.first))
       {
          cv::Mat mask = ConvertPolygonsToMask(file.path().string(), colorToClass);
          if (skipPredicat(mask))
@@ -222,8 +228,8 @@ void ConvertImagesInMultipleDatasetFolders(std::vector<std::pair<std::string, st
 {
    for (auto datasetFolderPath : datasetFolderPathes)
    {
-      std::filesystem::create_directories(datasetFolderPath.second);
-      for (auto file : std::filesystem::directory_iterator(datasetFolderPath.first))
+      fs::create_directories(datasetFolderPath.second);
+      for (auto file : fs::directory_iterator(datasetFolderPath.first))
       {
          cv::Mat image = cv::imread(file.path().string());
          if (skipPredicat(image))
@@ -255,8 +261,8 @@ void TestDatasetCreateList(std::pair<std::string, std::string> const& outputDirs
                            std::vector<cv::Scalar> const& classColors,
                            size_t count = 100)
 {
-   std::filesystem::create_directories(outputDirs.first);
-   std::filesystem::create_directories(outputDirs.second);
+   fs::create_directories(outputDirs.first);
+   fs::create_directories(outputDirs.second);
    for (auto current = 0U; current < count; ++current)
    {
       auto datasetTest = TestDatasetCreate(size, classColors);
@@ -347,6 +353,115 @@ auto ParseOptions(int argc, char *argv[]) -> std::map<std::string, std::vector<s
 
 void runOpts(std::map<std::string, std::vector<std::string>> params)
 {
+   if (params["--generate-custom-unet"].size() == 4)
+   {
+      auto isGrayscale = (std::stoi(params["--generate-custom-unet"][0]) == 1);
+      auto classCount = std::stoi(params["--generate-custom-unet"][1]);
+      auto levelsCount = std::stoi(params["--generate-custom-unet"][2]);
+      auto featuresCount = std::stoi(params["--generate-custom-unet"][3]);
+      auto modelFile = std::ofstream(std::string("./model/_unet") +
+                                     params["--generate-custom-unet"][0] + "c" +
+                                     params["--generate-custom-unet"][1] + "cl" +
+                                     params["--generate-custom-unet"][2] + "l" +
+                                     params["--generate-custom-unet"][3] + "f" + ".cfg");
+      modelFile << "[net]\n"
+                   "# Training\n"
+                   "width=256\n"
+                   "height=256\n"
+                   "#now supported only grayscale and 3 color\n"
+                   "channels=" << (isGrayscale ? 1 : 3) << "\n"
+                   "learning_rate=1e-7\n"
+                   "batch=20\n"
+                   "eps=1e-05\n"
+                   "momentum=0.1\n"
+                   "\n"
+                   "decay=0.0005\n"
+                   "adam=0\n"
+                   "B1=0.9\n"
+                   "B2=0.999\n"
+                   "max_batches = 400\n";
+      for (auto currentLevel = 0; currentLevel < levelsCount; ++currentLevel)
+      {
+         modelFile << "\n###encoder" << (currentLevel + 1) <<"\n"
+                      "[convolutional]\n"
+                      "batch_normalize=1\n"
+                      "filters=" << featuresCount << "\n"
+                      "size=3\n"
+                      "stride=1\n"
+                      "pad=1\n"
+                      "activation=leaky\n"
+                      "\n"
+                      "[convolutional]\n"
+                      "batch_normalize=1\n"
+                      "filters=" << featuresCount << "\n"
+                      "size=3\n"
+                      "stride=1\n"
+                      "pad=1\n"
+                      "activation=leaky\n"
+                      "\n"
+                      "[maxpool]\n"
+                      "size=2\n"
+                      "stride=2\n";
+         featuresCount *= 2;
+      }
+      modelFile << "\n###bottleneck\n"
+                   "[convolutional]\n"
+                   "batch_normalize=1\n"
+                   "filters=" << featuresCount << "\n"
+                   "size=3\n"
+                   "stride=1\n"
+                   "pad=1\n"
+                   "activation=leaky\n"
+                   "\n"
+                   "[convolutional]\n"
+                   "batch_normalize=1\n"
+                   "filters=" << featuresCount << "\n"
+                   "size=3\n"
+                   "stride=1\n"
+                   "pad=1\n"
+                   "activation=leaky\n";
+      for (auto currentLevel = 0; currentLevel < levelsCount; ++currentLevel)
+      {
+         featuresCount /= 2;
+         modelFile << "\n###decoder" << levelsCount - currentLevel << "\n"
+                      "[upsample]\n"
+                      "stride=2\n"
+                      "\n"
+                      "[convolutional]\n"
+                      "filters=" << featuresCount << "\n"
+                      "size=3\n"
+                      "stride=1\n"
+                      "pad=1\n"
+                      "activation=leaky\n"
+                      "\n"
+                      "[route]\n"
+                      "layers = -1, -" << (2 + (4 * (currentLevel + 1)) + ((1 + 1 + 2) * currentLevel)) << "\n"
+                      "\n"
+                      "[convolutional]\n"
+                      "batch_normalize=1\n"
+                      "filters=" << featuresCount << "\n"
+                      "size=3\n"
+                      "stride=1\n"
+                      "pad=1\n"
+                      "activation=leaky\n"
+                      "\n"
+                      "[convolutional]\n"
+                      "batch_normalize=1\n"
+                      "filters=" << featuresCount << "\n"
+                      "size=3\n"
+                      "stride=1\n"
+                      "pad=1\n"
+                      "activation=leaky\n";
+      }
+      modelFile << "\n################################\n"
+                   "[convolutional]\n"
+                   "filters=" << classCount << "\n"
+                   "size=1\n"
+                   "stride=1\n"
+                   "activation=logistic\n"
+                   "################################";
+      return;
+   }
    if ((params["--test-dataset-create"].size() >= 8) && (((params["--test-dataset-create"].size() - 5) % 3) == 0))
    {
       std::vector<cv::Scalar> classColors;
@@ -582,13 +697,13 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         if (metrics["loss"] < minLoss)
         {
            minLoss = metrics["loss"];
-           std::filesystem::remove(outputDirectory + "/" + "best_" + std::to_string(bestEpoch) + ".weights");
+           fs::remove(outputDirectory + "/" + "best_" + std::to_string(bestEpoch) + ".weights");
            bestEpoch = epoch;
            model->save_weights(outputDirectory + "/" + "best_" + std::to_string(epoch) + ".weights");
            std::cout << "Best epoch: " << epoch << std::endl;
         }
       });
-      std::filesystem::create_directory(outputDirectory);
+      fs::create_directory(outputDirectory);
       model->save_weights(outputDirectory + "/" + std::to_string(epoch) + ".weights");
    }
 }

@@ -45,7 +45,7 @@ endif()
 target_link_libraries(${PROJECT_NAME}2d
    ${TORCH_LIBRARIES}
    ${OpenCV_LIBS}
-   ${TIFF_LIB}
+   ${TIFF_LIBRARY}
    ${STD_FILESYSTEM})
 
 # Microfost Visual Studio build system very sophisticated and needed to be apologized for that...

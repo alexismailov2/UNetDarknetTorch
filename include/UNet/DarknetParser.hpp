@@ -10,7 +10,14 @@
 #include <stack>
 #include <string>
 #include <fstream>
+
+#ifdef __MSVC__
 #include <filesystem>
+namespace fs = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
 
 struct SwishImpl : torch::nn::Module
 {
@@ -98,8 +105,8 @@ public:
        {
           _path += ".cfg";
        }
-       if (!std::filesystem::exists(_path) &&
-           std::filesystem::exists("cfg/" + _path))
+       if (!fs::exists(_path) &&
+           fs::exists("cfg/" + _path))
        {
           _path = "cfg/" + _path;
        }
