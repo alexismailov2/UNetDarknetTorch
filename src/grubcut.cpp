@@ -2,6 +2,15 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include <iostream>
+
+#ifdef _MSC_VER
+#include <filesystem>
+namespace fs = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
+
 using namespace std;
 using namespace cv;
 static void help(char** argv)
@@ -51,6 +60,7 @@ public:
     void mouseClick( int event, int x, int y, int flags, void* param );
     int nextIter();
     int getIterCount() const { return iterCount; }
+    void save(std::string const& image, std::string const& mask) const;
 private:
     void setRectInMask();
     void setLblsInMask( int flags, Point p, bool isPr );
@@ -111,6 +121,22 @@ void GCApplication::showImage() const
         rectangle( res, Point( rect.x, rect.y ), Point(rect.x + rect.width, rect.y + rect.height ), GREEN, 2);
     imshow( *winName, res );
 }
+
+void GCApplication::save(std::string const& imagePath, std::string const& maskPath) const
+{
+   Mat res;
+   Mat binMask;
+   if( !isInitialized )
+      image->copyTo( res );
+   else
+   {
+      getBinMask( mask, binMask );
+      image->copyTo( res, binMask );
+   }
+   cv::imwrite(imagePath, res);
+   cv::imwrite(maskPath, binMask);
+}
+
 void GCApplication::setRectInMask()
 {
     CV_Assert( !mask.empty() );
@@ -244,52 +270,61 @@ static void on_mouse( int event, int x, int y, int flags, void* param )
 {
     gcapp.mouseClick( event, x, y, flags, param );
 }
+
+std::string const maskDir = "./dataset/400_foto/imgs";
+std::string const imgsDir = "./dataset/400_foto/masks";
 int main( int argc, char** argv )
 {
-    cv::CommandLineParser parser(argc, argv, "{@input| messi5.jpg |}");
-    help(argv);
-    string filename = parser.get<string>("@input");
-    if( filename.empty() )
-    {
-        cout << "\nDurn, empty filename" << endl;
-        return 1;
-    }
-    Mat image = imread(samples::findFile(filename), IMREAD_COLOR);
-    if( image.empty() )
-    {
-        cout << "\n Durn, couldn't read image filename " << filename << endl;
-        return 1;
-    }
+//    cv::CommandLineParser parser(argc, argv, "{path           |.     | path to file         }");
+//    help(argv);
+//    string filename = parser.get<string>("path");
+//    if( filename.empty() )
+//    {
+//        cout << "\nEmpty filename" << endl;
+//        return 1;
+//    }
+    string filename = argv[1];
     const string winName = "image";
     namedWindow( winName, WINDOW_AUTOSIZE );
     setMouseCallback( winName, on_mouse, 0 );
-    gcapp.setImageAndWinName( image, winName );
-    gcapp.showImage();
-    for(;;)
+    for (auto file : fs::directory_iterator(filename))
     {
-        char c = (char)waitKey(0);
-        switch( c )
+        Mat image = imread(/*samples::findFile(filename)*/file.path().string(), IMREAD_COLOR);
+        if( image.empty() )
         {
-            case '\x1b':
-                cout << "Exiting ..." << endl;
-                goto exit_main;
-            case 'r':
-                cout << endl;
-                gcapp.reset();
-                gcapp.showImage();
-                break;
-            case 'n':
-                int iterCount = gcapp.getIterCount();
-                cout << "<" << iterCount << "... ";
-                int newIterCount = gcapp.nextIter();
-                if( newIterCount > iterCount )
-                {
-                    gcapp.showImage();
-                    cout << iterCount << ">" << endl;
-                }
-                else
-                    cout << "rect must be determined>" << endl;
-                break;
+            cout << "\n Durn, couldn't read image filename " << filename << endl;
+            return 1;
+        }
+        gcapp.setImageAndWinName( image, winName );
+        gcapp.reset();
+        gcapp.showImage();
+        for(;;)
+        {
+            char c = (char)waitKey(0);
+            switch( c )
+            {
+               case '\x1b':
+                   cout << "Exiting ..." << endl;
+                   break;
+               case 'r':
+                   cout << endl;
+                   gcapp.reset();
+                   gcapp.showImage();
+                   break;
+               case 'n':
+                   int iterCount = gcapp.getIterCount();
+                   cout << "<" << iterCount << "... ";
+                   int newIterCount = gcapp.nextIter();
+                   if( newIterCount > iterCount )
+                   {
+                       gcapp.showImage();
+                       gcapp.save(maskDir + "/" + file.path().filename().string(), imgsDir + "/" + file.path().filename().string());
+                       cout << iterCount << ">" << endl;
+                   }
+                   else
+                       cout << "rect must be determined>" << endl;
+                   break;
+            }
         }
     }
     exit_main:

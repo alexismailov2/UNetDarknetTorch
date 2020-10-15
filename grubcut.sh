@@ -1,0 +1,1 @@
+./build_host/grubcut ./dataset/400_foto/2_defective
