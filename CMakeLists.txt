@@ -42,7 +42,7 @@ if (NOT APPLE AND NOT WIN32)
    set(STD_FILESYSTEM stdc++fs)
 endif()
 
-if(NOT MSVC)
+if(NOT MSVC AND NOT APPLE)
    set(TIFF_LIB ${TIFF_LIBRARY})
 endif()
 

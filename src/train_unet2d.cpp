@@ -209,6 +209,10 @@ void ConvertPolygonsToMaskInMultipleDatasetFolders(std::vector<std::pair<std::st
       fs::create_directories(datasetFolderPath.second);
       for (auto file : fs::directory_iterator(datasetFolderPath.first))
       {
+         if (fs::is_directory(file))
+         {
+           continue;
+         }
          cv::Mat mask = ConvertPolygonsToMask(file.path().string(), colorToClass);
          if (skipPredicat(mask))
          {
@@ -223,7 +227,7 @@ void ConvertPolygonsToMaskInMultipleDatasetFolders(std::vector<std::pair<std::st
 }
 
 void ConvertImagesInMultipleDatasetFolders(std::vector<std::pair<std::string, std::string>> const& datasetFolderPathes,
-                                           cv::Rect const& roi = {},
+                                           cv::Rect const& roi = {}, bool isClahe = false,
                                            std::function<bool(cv::Mat const&)>&& skipPredicat = [](cv::Mat const&) -> bool { return false; })
 {
    for (auto datasetFolderPath : datasetFolderPathes)
@@ -235,6 +239,12 @@ void ConvertImagesInMultipleDatasetFolders(std::vector<std::pair<std::string, st
          if (skipPredicat(image))
          {
             continue;
+         }
+         if (isClahe)
+         {
+           auto clahe = cv::createCLAHE();
+           cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+           clahe->apply(image, image);
          }
          auto filename = file.path().filename().string();
          filename = filename.substr(0, filename.size() - 4);
@@ -289,7 +299,7 @@ auto throw_an_error = [](std::string const& message)
                            "\n\t"
                            "\n\t--count-labels=<path>,<path>,...         - Select directories for counting labels."
                            "\n\t"
-                           "\n\t--convert-polygons-to-masks=<path-polygons>,<path-out-masks>,<path-polygons>,<path-out-masks>,..."
+                           "\n\t--convert-polygons-to-masks=<left>,<top>,<width>,<height>,<path-polygons>,<path-out-masks>,<path-polygons>,<path-out-masks>,..."
                            "\n\t                                         - Select directories for convertation polygons to masks."
                            "\n\t"
                            "\n\t--convert-images=<left>,<top>,<width>,<height>,<path-images>,<path-masks>..."
@@ -353,13 +363,13 @@ auto ParseOptions(int argc, char *argv[]) -> std::map<std::string, std::vector<s
 
 void runOpts(std::map<std::string, std::vector<std::string>> params)
 {
-   if (params["--generate-custom-unet"].size() == 4)
+   if (params["--generate-custom-unet"].size() == 5)
    {
       auto isGrayscale = (std::stoi(params["--generate-custom-unet"][0]) == 1);
       auto classCount = std::stoi(params["--generate-custom-unet"][1]);
       auto levelsCount = std::stoi(params["--generate-custom-unet"][2]);
       auto featuresCount = std::stoi(params["--generate-custom-unet"][3]);
-      auto modelFile = std::ofstream(std::string("./model/_unet") +
+      auto modelFile = std::ofstream(params["--generate-custom-unet"][4] + "/unet_" +
                                      params["--generate-custom-unet"][0] + "c" +
                                      params["--generate-custom-unet"][1] + "cl" +
                                      params["--generate-custom-unet"][2] + "l" +
@@ -539,7 +549,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       {
          imagesPathsInputAndOutput.emplace_back(std::make_pair(*imagesInputAndOutputIt, *std::next(imagesInputAndOutputIt)));
       }
-      ConvertImagesInMultipleDatasetFolders(imagesPathsInputAndOutput, roi);
+      ConvertImagesInMultipleDatasetFolders(imagesPathsInputAndOutput, roi, (!params["--clahe"].empty() && params["--clahe"][0] == "yes"));
    }
    else
    {
