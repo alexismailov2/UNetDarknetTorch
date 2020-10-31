@@ -12,7 +12,7 @@ class UNetDataset
 {
 public:
     UNetDataset(std::vector<std::tuple<std::string, std::string>> const& datasetDirsPath,
-                std::vector<cv::Scalar> const& classes,
+                std::map<std::string, std::vector<cv::Scalar>> const& classes,
                 cv::Size size = {256, 256},
                 bool grayscale = false);
     auto get(size_t index) -> torch::data::Example<> override;

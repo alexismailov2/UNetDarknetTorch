@@ -139,7 +139,6 @@ void CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string co
 {
    boost::property_tree::ptree pt;
    boost::property_tree::read_json(polygonInfo, pt);
-
    std::set<std::string> classesSetForImage;
    auto shapes = pt.get_child("shapes");
    for (auto const& shape : shapes)
@@ -499,6 +498,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
          std::cout << "\t" << item.first << " : " << item.second << std::endl;
       }
    }
+#if 0
    std::map<std::string, cv::Scalar> colorsToClass;
    if (!params["--colors-to-class-map"].empty() && (params["--colors-to-class-map"].size() % 4) == 0)
    {
@@ -510,6 +510,19 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
             std::stoi(*std::next(colorToClassIt, 1)), std::stoi(*std::next(colorToClassIt, 2)), std::stoi(*std::next(colorToClassIt, 3)));
       }
    }
+#else
+   std::map<std::string, std::vector<cv::Scalar>> colorsToClass;
+   if (!params["--colors-to-class-map"].empty() && (params["--colors-to-class-map"].size() % 4) == 0)
+   {
+      for (auto colorToClassIt = params["--colors-to-class-map"].cbegin();
+           colorToClassIt != params["--colors-to-class-map"].cend();
+           colorToClassIt += 4)
+      {
+         colorsToClass[*colorToClassIt].push_back(cv::Scalar(
+            std::stoi(*std::next(colorToClassIt, 1)), std::stoi(*std::next(colorToClassIt, 2)), std::stoi(*std::next(colorToClassIt, 3))));
+      }
+   }
+#endif
    if ((params["--convert-polygons-to-masks"].size() >= 6) && (((params["--convert-polygons-to-masks"].size() - 4) % 2) == 0))
    {
       auto roi = cv::Rect{std::stoi(params["--convert-polygons-to-masks"][0]),
@@ -525,7 +538,8 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
          {
             polygonsPathsInputAndOutput.emplace_back(std::make_pair(*polygonsInputAndOutputIt, *std::next(polygonsInputAndOutputIt)));
          }
-         ConvertPolygonsToMaskInMultipleDatasetFolders(polygonsPathsInputAndOutput, roi, colorsToClass);
+         // TODO: Should be fixed according to the changes
+         //ConvertPolygonsToMaskInMultipleDatasetFolders(polygonsPathsInputAndOutput, roi, colorsToClass);
       }
       else
       {
@@ -616,7 +630,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         selectedClassAndThresholdIt != params["--selected-classes-and-thresholds"].cend();
         selectedClassAndThresholdIt += 2)
    {
-      classColors.push_back(colorsToClass[*selectedClassAndThresholdIt]);
+      classColors.push_back(colorsToClass[*selectedClassAndThresholdIt].front());
       thresholds.push_back(std::stof(*std::next(selectedClassAndThresholdIt)));
    }
 
@@ -640,8 +654,10 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
    std::cout << "Using device: " << device << std::endl;
 
-   auto train_dataset = UNetDataset(trainDirectories, classColors, size, isGrayscale).map(torch::data::transforms::Stack<>());
-   auto valid_dataset = UNetDataset(validDirectories, classColors, size, isGrayscale).map(torch::data::transforms::Stack<>());
+   //auto train_dataset = UNetDataset(trainDirectories, classColors, size, isGrayscale).map(torch::data::transforms::Stack<>());
+   //auto valid_dataset = UNetDataset(validDirectories, classColors, size, isGrayscale).map(torch::data::transforms::Stack<>());
+   auto train_dataset = UNetDataset(trainDirectories, colorsToClass, size, isGrayscale).map(torch::data::transforms::Stack<>());
+   auto valid_dataset = UNetDataset(validDirectories, colorsToClass, size, isGrayscale).map(torch::data::transforms::Stack<>());
 
    auto train_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(train_dataset), batchSize);
    auto valid_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(valid_dataset), batchSize);
