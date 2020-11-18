@@ -227,7 +227,7 @@ void ConvertPolygonsToMaskInMultipleDatasetFolders(std::vector<std::pair<std::st
 }
 
 void ConvertImagesInMultipleDatasetFolders(std::vector<std::pair<std::string, std::string>> const& datasetFolderPathes,
-                                           cv::Rect const& roi = {}, bool isClahe = false,
+                                           cv::Rect const& roi = {}, bool isClahe = false, cv::Size const& newSize = {},
                                            std::function<bool(cv::Mat const&)>&& skipPredicat = [](cv::Mat const&) -> bool { return false; })
 {
    for (auto datasetFolderPath : datasetFolderPathes)
@@ -249,6 +249,10 @@ void ConvertImagesInMultipleDatasetFolders(std::vector<std::pair<std::string, st
          auto filename = file.path().filename().string();
          filename = filename.substr(0, filename.size() - 4);
          cv::Mat imageCropped = roi.empty() ? image : image(roi);
+         if (!newSize.empty())
+         {
+             cv::resize(imageCropped, imageCropped, newSize, cv::INTER_NEAREST);
+         }
          cv::imwrite(datasetFolderPath.second + filename + ".png", imageCropped);
       }
    }
@@ -305,7 +309,9 @@ auto throw_an_error = [](std::string const& message)
                            "\n\t--convert-images=<left>,<top>,<width>,<height>,<path-images>,<path-masks>..."
                            "\n\t                                         - Select directories for convertation images to needed size."
                            "\n\t"
-                           "\n\t--model-darknet=<path-to-darknet-model>  - Path to darknet unet model."
+                           "\n\t--model-darknet=<path-to-darknet-model>[,<pretrained-weights-path>]"
+                           "\n\t                                         - Path to darknet unet model."
+                           "\n\t                                           Optionally - path to weights learned previous."
                            "\n\t"
                            "\n\t--epochs=<count>                         - Epochs count."
                            "\n\t"
@@ -331,6 +337,8 @@ auto throw_an_error = [](std::string const& message)
                            "\n\t"
                            "\n\t--grayscale=yes|no                       - Turn on|off color mode."
                            "\n\t"
+                           "\n\t--best_weights_only=yes|no               - Turn on|off saving best weights only."
+                           "\n\t"
                            "\n\nExample:"
                            "\n\t./build_host/train_unet_darknet2d \\"
                            "\n\t --model-darknet=./model/unet3c2cl2l8f.cfg \\"
@@ -341,7 +349,8 @@ auto throw_an_error = [](std::string const& message)
                            "\n\t --colors-to-class-map=\"circle,0,0,255,rectangle,0,0,255,disk,0,0,255\" \\"
                            "\n\t --selected-classes-and-thresholds=circle,0.3,rectangle,0.3,disk,0.3 \\"
                            "\n\t --batch-count=1 \\"
-                           "\n\t --size-downscaled=128,128";
+                           "\n\t --size-downscaled=128,128 \\"
+                           "\n\t --best-weights-only=no";
   std::cout << message + "\nSee usage:\n\n" + help << std::endl;
 };
 
@@ -538,6 +547,13 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    }
    if ((params["--convert-images"].size() >= 6) && (((params["--convert-images"].size() - 4) % 2) == 0))
    {
+      auto newSize = cv::Size{};
+      if (params["--size-downscaled"].size() == 2)
+      {
+          newSize = cv::Size{std::stoi(params["--size-downscaled"][0]),
+                             std::stoi(params["--size-downscaled"][1])};
+      }
+
       auto roi = cv::Rect{std::stoi(params["--convert-images"][0]),
                           std::stoi(params["--convert-images"][1]),
                           std::stoi(params["--convert-images"][2]),
@@ -549,7 +565,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       {
          imagesPathsInputAndOutput.emplace_back(std::make_pair(*imagesInputAndOutputIt, *std::next(imagesInputAndOutputIt)));
       }
-      ConvertImagesInMultipleDatasetFolders(imagesPathsInputAndOutput, roi, (!params["--clahe"].empty() && params["--clahe"][0] == "yes"));
+      ConvertImagesInMultipleDatasetFolders(imagesPathsInputAndOutput, roi, (!params["--clahe"].empty() && params["--clahe"][0] == "yes"), newSize);
    }
    else
    {
@@ -650,6 +666,12 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    std::cout << model->_moduleList << std::endl;
 
    model->to(device);
+
+   if (params["--model-darknet"].size() == 2)
+   {
+       model->load_weights(params["--model-darknet"][1]);
+   }
+
    std::cout << "UNet2d: " << c10::str(model) << std::endl;
 
    torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(0.00001));
@@ -714,12 +736,10 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         }
       });
       fs::create_directory(outputDirectory);
-      model->save_weights(outputDirectory + "/" + std::to_string(epoch) + ".weights");
+      if (params["best_weights_only"].empty() || (params["best_weights_only"][0] == "no"))
+      {
+          model->save_weights(outputDirectory + "/" + std::to_string(epoch) + ".weights");
+      }
    }
 }
 
-int main(int argc, char* argv[])
-{
-   runOpts(ParseOptions(argc, argv));
-   return 0;
-}

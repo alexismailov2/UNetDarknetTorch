@@ -29,11 +29,14 @@ include_directories(
    ${Boost_INCLUDE_DIRS}
    ${OpenCV_INCLUDE_DIRS})
 
+add_library(${PROJECT_NAME}2dl
+        ${PUBLIC_INCLUDES}
+        src/train_unet2d.cpp
+        src/UNetDataset.cpp
+        src/DarknetParser.cpp)
+
 add_executable(${PROJECT_NAME}2d
-   ${PUBLIC_INCLUDES}
-   src/train_unet2d.cpp
-   src/UNetDataset.cpp
-   src/DarknetParser.cpp)
+   src/main.cpp)
 
 target_compile_features(${PROJECT_NAME}2d PUBLIC cxx_range_for)
 
@@ -46,11 +49,14 @@ if(NOT MSVC AND NOT APPLE)
    set(TIFF_LIB ${TIFF_LIBRARY})
 endif()
 
-target_link_libraries(${PROJECT_NAME}2d
+target_link_libraries(${PROJECT_NAME}2dl
    ${TORCH_LIBRARIES}
    ${OpenCV_LIBS}
    ${TIFF_LIB}
    ${STD_FILESYSTEM})
+
+target_link_libraries(${PROJECT_NAME}2d
+   ${PROJECT_NAME}2dl)
 
 add_executable(grubcut
         src/grubcut.cpp)
