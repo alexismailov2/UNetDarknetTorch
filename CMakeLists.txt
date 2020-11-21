@@ -4,9 +4,6 @@ project(train_unet_darknet)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-#set(CUSTOM_TORCH_BUILD_PATH "/home/oleksandr_ismailov/WORK/Upwork/libtorch_gpu/libtorch")
-#set(CUSTOM_OPENCV_BUILD_PATH "/home/oleksandr_ismailov/2/release4_4")
-
 if("${CUSTOM_TORCH_BUILD_PATH}" STREQUAL "")
    find_package(Torch REQUIRED)
 else()
@@ -30,10 +27,10 @@ include_directories(
    ${OpenCV_INCLUDE_DIRS})
 
 add_library(${PROJECT_NAME}2dl
-        ${PUBLIC_INCLUDES}
-        src/train_unet2d.cpp
-        src/UNetDataset.cpp
-        src/DarknetParser.cpp)
+   ${PUBLIC_INCLUDES}
+   src/train_unet2d.cpp
+   src/UNetDataset.cpp
+   src/DarknetParser.cpp)
 
 add_executable(${PROJECT_NAME}2d
    src/main.cpp)
@@ -50,6 +47,7 @@ if(NOT MSVC AND NOT APPLE)
 endif()
 
 target_link_libraries(${PROJECT_NAME}2dl
+   PRIVATE
    ${TORCH_LIBRARIES}
    ${OpenCV_LIBS}
    ${TIFF_LIB}
@@ -59,12 +57,12 @@ target_link_libraries(${PROJECT_NAME}2d
    ${PROJECT_NAME}2dl)
 
 add_executable(grubcut
-        src/grubcut.cpp)
+   src/grubcut.cpp)
 
 target_link_libraries(grubcut
-        ${OpenCV_LIBS}
-        ${TIFF_LIB}
-        ${STD_FILESYSTEM})
+   ${OpenCV_LIBS}
+   ${TIFF_LIB}
+   ${STD_FILESYSTEM})
 
 # Microfost Visual Studio build system very sophisticated and needed to be apologized for that...
 # Not tested
