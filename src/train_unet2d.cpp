@@ -135,10 +135,17 @@ auto toColorMask(std::vector<cv::Mat> const& masks, std::vector<cv::Scalar> cons
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-void CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string const& polygonInfo, bool forImage = false)
+bool CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string const& polygonInfo, bool forImage = false)
 {
    boost::property_tree::ptree pt;
-   boost::property_tree::read_json(polygonInfo, pt);
+   try
+   {
+      boost::property_tree::read_json(polygonInfo, pt);
+   }
+   catch (boost::property_tree::json_parser::json_parser_error& ex)
+   {
+      return false;
+   }
 
    std::set<std::string> classesSetForImage;
    auto shapes = pt.get_child("shapes");
@@ -158,12 +165,20 @@ void CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string co
    {
       map[item]++;
    }
+   return true;
 }
 
 auto ConvertPolygonsToMask(std::string const& polygonInfo, std::map<std::string, cv::Scalar> colorToClass) -> cv::Mat
 {
    boost::property_tree::ptree pt;
-   boost::property_tree::read_json(polygonInfo, pt);
+   try
+   {
+     boost::property_tree::read_json(polygonInfo, pt);
+   }
+   catch (boost::property_tree::json_parser::json_parser_error& ex)
+   {
+     return {};
+   }
 
    cv::Mat mask = cv::Mat::zeros(pt.get<int>("imageHeight"), pt.get<int>("imageWidth"), CV_8UC3);
    auto shapes = pt.get_child("shapes");

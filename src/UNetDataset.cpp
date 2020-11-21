@@ -31,6 +31,7 @@ void LabelsEnumerator(std::string const& annotationDir, std::function<void(std::
    }
 }
 
+#if 0 // TODO: Should be deleted because it was moved to train_unet2d.cpp
 void CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string const& polygonInfo, bool forImage = false)
 {
    boost::property_tree::ptree pt;
@@ -80,6 +81,7 @@ auto ConvertPolygonsToMask(std::string const& polygonInfo, std::map<std::string,
    }
    return mask.clone();
 }
+#endif
 
 auto colorsToMasks(cv::Mat const& colorMasks, std::vector<cv::Scalar> const& classColors, cv::Size const& size) -> cv::Mat
 {

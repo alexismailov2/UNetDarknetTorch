@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-void CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string const& polygonInfo, bool forImage = false);
+bool CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string const& polygonInfo, bool forImage = false);
 auto ConvertPolygonsToMask(std::string const& polygonInfo, std::map<std::string, cv::Scalar> colorToClass) -> cv::Mat;
 
 void runOpts(std::map<std::string, std::vector<std::string>> params);
