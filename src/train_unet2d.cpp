@@ -168,6 +168,21 @@ bool CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string co
    return true;
 }
 
+void LabelMeDeleteImage(std::string const& polygonInfo)
+{
+  boost::property_tree::ptree pt;
+  try
+  {
+    boost::property_tree::read_json(polygonInfo, pt);
+    pt.put<std::string>("imageData", {});
+    boost::property_tree::write_json(polygonInfo, pt);
+  }
+  catch (boost::property_tree::json_parser::json_parser_error& ex)
+  {
+    return;
+  }
+}
+
 auto ConvertPolygonsToMask(std::string const& polygonInfo, std::map<std::string, cv::Scalar> colorToClass) -> cv::Mat
 {
    boost::property_tree::ptree pt;
