@@ -168,10 +168,10 @@ auto TestDatasetCreate(cv::Size const& size, std::vector<cv::Scalar> const& clas
 
 UNetDataset::UNetDataset(std::vector<std::tuple<std::string, std::string>> const &datasetDirsPath,
                          std::vector<cv::Scalar> const& classColors,
-                         cv::Size size,
+                         cv::Size _size,
                          bool grayscale)
   : _datasetDirsPath{datasetDirsPath}
-  , _size{size}
+  //, _size{size}
   , _classColors{classColors}
 {
    for (auto const& datasetDirPath : datasetDirsPath)
@@ -185,6 +185,7 @@ UNetDataset::UNetDataset(std::vector<std::tuple<std::string, std::string>> const
             _imagesAndMasks.back().second.replace(imageAndMask.second.size() - 3, 3, "png");
          }
          _image.emplace_back(cv::imread(imageAndMask.first, grayscale ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR));
+         _size = (!_size.empty()) ? _size : cv::Size{_image.back().cols, _image.back().rows};
          cv::resize(_image.back(), _image.back(), _size, 0, 0, cv::INTER_NEAREST);
 
          _image.back().convertTo(_image.back(), grayscale ? CV_32FC1 : CV_32FC3, 1.0 / 255.0);

@@ -20,7 +20,7 @@ public:
 
 private:
     std::vector<std::tuple<std::string, std::string>> _datasetDirsPath;
-    cv::Size                                          _size;
+    //cv::Size                                          _size;
     std::vector<std::pair<std::string, std::string>>  _imagesAndMasks;
     std::vector<cv::Scalar>                           _classColors;
     std::vector<cv::Mat>                              _image;
