@@ -663,7 +663,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         selectedClassAndThresholdIt += 2)
    {
       classColors.push_back(colorsToClass[*selectedClassAndThresholdIt]);
-      thresholds.push_back(std::stof(*std::next(selectedClassAndThresholdIt)));
+      thresholds.push_back(/*std::stof(*std::next(selectedClassAndThresholdIt))*/0.3);
    }
 
    int batchSize = params["--batch-count"].empty() ? 1 : std::stoi(params["--batch-count"][0]);
@@ -720,7 +720,9 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       auto i = 0;
       valid(model, device, *valid_loader, [&](torch::Tensor& predict, torch::Tensor& targets)
       {
-        int sz[] = {1, static_cast<int>(classColors.size()), size.width, size.height};
+        auto const height = predict.size(2);
+        auto const width = predict.size(3);
+        int sz[] = {1, static_cast<int>(classColors.size()), width, height};
         cv::Mat predictMat = cv::Mat(4, sz, CV_32FC1, predict.contiguous().cpu().data_ptr());
         auto masks = toClassesMapsThreshold(predictMat, {}, thresholds);
         for (auto i = 0U; i < masks.size(); ++i)
