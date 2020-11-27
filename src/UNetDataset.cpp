@@ -168,50 +168,89 @@ auto TestDatasetCreate(cv::Size const& size, std::vector<cv::Scalar> const& clas
 
 UNetDataset::UNetDataset(std::vector<std::tuple<std::string, std::string>> const &datasetDirsPath,
                          std::vector<cv::Scalar> const& classColors,
-                         cv::Size _size,
-                         bool grayscale)
+                         cv::Size size,
+                         bool grayscale,
+                         bool inMemory)
   : _datasetDirsPath{datasetDirsPath}
-  //, _size{size}
+  , _size{size}
   , _classColors{classColors}
+  , _grayscale{grayscale}
+  , _inMemory{inMemory}
 {
    for (auto const& datasetDirPath : datasetDirsPath)
    {
-      for (auto& p : fs::directory_iterator(std::get<0>(datasetDirPath)))
+      std::vector<fs::directory_entry> datasetList(fs::directory_iterator{std::get<0>(datasetDirPath)}, fs::directory_iterator{});
+      std::sort(datasetList.begin(), datasetList.end(), [](auto& a, auto& b) {
+          return a.path().filename().string() < b.path().filename().string();
+      });
+      for (auto& p : datasetList)
       {
-         _imagesAndMasks.emplace_back(std::make_pair(p.path().string(), std::get<1>(datasetDirPath) + "/" + p.path().filename().string()));
-         auto const& imageAndMask = _imagesAndMasks.back();
-         if (imageAndMask.second.substr(imageAndMask.second.size() - 3) == "jpg")
-         {
-            _imagesAndMasks.back().second.replace(imageAndMask.second.size() - 3, 3, "png");
-         }
-         _image.emplace_back(cv::imread(imageAndMask.first, grayscale ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR));
-         _size = (!_size.empty()) ? _size : cv::Size{_image.back().cols, _image.back().rows};
-         cv::resize(_image.back(), _image.back(), _size, 0, 0, cv::INTER_NEAREST);
-
-         _image.back().convertTo(_image.back(), grayscale ? CV_32FC1 : CV_32FC3, 1.0 / 255.0);
-
-         torch::Tensor inputImage = torch::from_blob(_image.back().data, {_size.height, _size.width, grayscale ? 1 : 3}, torch::kFloat);
-         inputImage = inputImage.permute({2, 0, 1});
-
-         cv::Mat colorMasks = cv::imread(imageAndMask.second);
-         cv::resize(colorMasks, colorMasks, _size, 0, 0, cv::INTER_NEAREST);
-
-         _mask.emplace_back(colorsToMasks(colorMasks, classColors, _size));
-
-         torch::Tensor maskImage =
-            torch::from_blob(_mask.back().data, {static_cast<int>(classColors.size()), _size.height, _size.width}, torch::kFloat);
-
-         _data.emplace_back(inputImage, maskImage);
+          //std::cout << p.path().filename().string() << std::endl;
+          _imagesAndMasks.emplace_back(
+                  std::make_pair(p.path().string(), std::get<1>(datasetDirPath) + "/" + p.path().filename().string()));
+          if (_imagesAndMasks.back().second.substr(_imagesAndMasks.back().second.size() - 3) == "jpg")
+          {
+              _imagesAndMasks.back().second.replace(_imagesAndMasks.back().second.size() - 3, 3, "png");
+          }
+          if (_inMemory)
+          {
+             _data.emplace_back(getData(_imagesAndMasks.back()));
+          }
+//         auto const& imageAndMask = _imagesAndMasks.back();
+//         if (imageAndMask.second.substr(imageAndMask.second.size() - 3) == "jpg")
+//         {
+//            _imagesAndMasks.back().second.replace(imageAndMask.second.size() - 3, 3, "png");
+//         }
+//         _image.emplace_back(cv::imread(imageAndMask.first, grayscale ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR));
+//         _size = (!_size.empty()) ? _size : cv::Size{_image.back().cols, _image.back().rows};
+//         cv::resize(_image.back(), _image.back(), _size, 0, 0, cv::INTER_NEAREST);
+//
+//         _image.back().convertTo(_image.back(), grayscale ? CV_32FC1 : CV_32FC3, 1.0 / 255.0);
+//
+//         torch::Tensor inputImage = torch::from_blob(_image.back().data, {_size.height, _size.width, grayscale ? 1 : 3}, torch::kFloat);
+//         inputImage = inputImage.permute({2, 0, 1});
+//
+//         cv::Mat colorMasks = cv::imread(imageAndMask.second);
+//         cv::resize(colorMasks, colorMasks, _size, 0, 0, cv::INTER_NEAREST);
+//
+//         _mask.emplace_back(colorsToMasks(colorMasks, classColors, _size));
+//
+//         torch::Tensor maskImage =
+//            torch::from_blob(_mask.back().data, {static_cast<int>(classColors.size()), _size.height, _size.width}, torch::kFloat);
+//         _data.emplace_back(inputImage.clone(), maskImage.clone());
+//         _image.clear();
+//         _mask.clear();
       }
    }
 }
 
+auto UNetDataset::getData(std::pair<std::string, std::string> const& imageAndMask) -> torch::data::Example<>
+{
+    cv::Mat image = cv::imread(imageAndMask.first, _grayscale ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR);
+    cv::Size size = (!_size.empty()) ? _size : cv::Size{image.cols, image.rows};
+    cv::resize(image, image, size, 0, 0, cv::INTER_NEAREST);
+
+    image.convertTo(image, _grayscale ? CV_32FC1 : CV_32FC3, 1.0 / 255.0);
+
+    torch::Tensor inputImage = torch::from_blob(image.data, {size.height, size.width, _grayscale ? 1 : 3}, torch::kFloat);
+    inputImage = inputImage.permute({2, 0, 1});
+
+    cv::Mat colorMasks = cv::imread(imageAndMask.second);
+    cv::resize(colorMasks, colorMasks, size, 0, 0, cv::INTER_NEAREST);
+
+    cv::Mat mask = colorsToMasks(colorMasks, _classColors, size);
+
+    torch::Tensor maskImage =
+            torch::from_blob(mask.data, {static_cast<int>(_classColors.size()), size.height, size.width}, torch::kFloat);
+    return {inputImage.clone(), maskImage.clone()};
+}
+
 auto UNetDataset::get(size_t index) -> torch::data::Example<>
 {
-   return _data[index];
+   return _inMemory ? _data[index] : getData(_imagesAndMasks[index]);
 }
 
 auto UNetDataset::size() const -> c10::optional<size_t>
 {
-  return _data.size();
+  return _imagesAndMasks.size();
 }
