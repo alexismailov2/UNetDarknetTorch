@@ -736,9 +736,93 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         }
       });
       fs::create_directory(outputDirectory);
-      if (params["best_weights_only"].empty() || (params["best_weights_only"][0] == "no"))
+      if (params["--best_weights_only"].empty() || (params["--best_weights_only"][0] == "no"))
       {
           model->save_weights(outputDirectory + "/" + std::to_string(epoch) + ".weights");
+      }
+
+      if (!params["--calculate_iou"].empty() && (params["--calculate_iou"][0] == "yes"))
+      {
+          auto foundBoundingBoxes = [](std::vector<cv::Mat> const& masks) -> std::vector<std::vector<cv::Rect>>
+          {
+              std::vector<std::vector<cv::Point>> contours;
+              std::vector<cv::Vec4i> hierarchy;
+              std::vector<std::vector<cv::Rect>> boundingBoxes;
+              boundingBoxes.reserve(masks.size());
+              for (auto const& mask : masks)
+              {
+                  cv::findContours(mask, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                  boundingBoxes.emplace_back(std::vector<cv::Rect>(contours.size()));
+                  for (auto j = 0; j < contours.size(); ++j)
+                  {
+                      boundingBoxes.back()[j] = cv::boundingRect(contours[j]);
+                  }
+              }
+              return boundingBoxes;
+          };
+          auto ii = 0;
+          std::vector<float> iouScores(classColors.size());
+          valid(model, device, *valid_loader, [&](torch::Tensor& predict, torch::Tensor& targets)
+          {
+              int sz[] = {1, static_cast<int>(classColors.size()), size.width, size.height};
+              cv::Mat predictMat = cv::Mat(4, sz, CV_32FC1, predict.contiguous().cpu().data_ptr());
+              auto masks = toClassesMapsThreshold(predictMat, {}, thresholds);
+              auto predictBoxes = foundBoundingBoxes(masks);
+              for (auto j = 0U; j < masks.size(); ++j)
+              {
+                  cv::imshow(std::string("Predict_") + std::to_string(i), masks[i]);
+              }
+
+              cv::Mat targetMat = cv::Mat(4, sz, CV_32FC1, targets.contiguous().cpu().data_ptr());
+              masks = toClassesMapsThreshold(targetMat, {}, thresholds);
+              auto targetBoxes = foundBoundingBoxes(masks);
+              for (auto j = 0U; j < masks.size(); ++j)
+              {
+                  cv::imshow(std::string("Target_") + std::to_string(i), masks[i]);
+              }
+#if 0
+              for (auto classIndex = 0; classIndex < masks.size(); ++classIndex)
+              {
+                  for (auto rectIndex = 0; rectIndex < predictBoxes[classIndex].size(); ++rectIndex)
+                  {
+
+                  }
+                  auto iou = predictBoxes[j]
+              }
+#endif
+              cv::waitKey(1);
+              ++ii;
+          }, [&](std::map<std::string, float> metrics) {
+#if 0
+              static std::map<std::string, cv::Scalar> chartColors = {std::make_pair("bce", cv::Scalar(0x00, 0x00, 0xFF)),
+                                                                      std::make_pair("dice", cv::Scalar(0x00, 0xFF, 0x00)),
+                                                                      std::make_pair("loss", cv::Scalar(0xFF, 0x00, 0x00))};
+              static std::map<std::string, std::vector<cv::Point>> validationLossData;
+              cv::Mat validationChart = cv::Mat(500, 500, CV_8UC3, cv::Scalar{255, 255, 255});
+              for (auto const& item : metrics)
+              {
+                  validationLossData[item.first].emplace_back(static_cast<int>((static_cast<float>(500)/kNumberOfEpochs) * epoch),
+                                                              500 - (item.second * 500));
+                  // MSVC lead to error when in lambda below was auto const& parameters(for x86 compiler)
+                  iterateOverLinesInContours(validationLossData[item.first], [&](cv::Point const& p1, cv::Point const& p2){
+                      cv::line(validationChart, p1, p2, chartColors[item.first], 3);
+                  });
+                  cv::imshow(std::string("Validation chart"), validationChart);
+                  cv::imwrite(outputDirectory + "/chart.png", validationChart);
+                  cv::waitKey(1);
+              }
+              static auto minLoss = 10000.0f;
+              static auto bestEpoch = 0;
+              if (metrics["loss"] < minLoss)
+              {
+                  minLoss = metrics["loss"];
+                  fs::remove(outputDirectory + "/" + "best_" + std::to_string(bestEpoch) + ".weights");
+                  bestEpoch = epoch;
+                  model->save_weights(outputDirectory + "/" + "best_" + std::to_string(epoch) + ".weights");
+                  std::cout << "Best epoch: " << epoch << std::endl;
+              }
+#endif
+          });
       }
    }
 }
