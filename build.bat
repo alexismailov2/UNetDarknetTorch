@@ -1,11 +1,11 @@
-"C:\Program Files\JetBrains\CLion 2020.2.3\bin\cmake\win\bin\cmake.exe" . ^
+"cmake.exe" . ^
  -Bbuild_host_w ^
  -DCUSTOM_TORCH_BUILD_PATH=downloads/libtorch ^
  -DCUSTOM_OPENCV_BUILD_PATH=C:\OpenCV\opencv\build\x64\vc14\lib ^
  -DTIFF_LIBRARY=downloads/libtiff/lib ^
  -DTIFF_INCLUDE_DIR=downloads/libtiff/include
 
-"C:\Program Files\JetBrains\CLion 2020.2.3\bin\cmake\win\bin\cmake.exe" --build build_host_w --target ALL_BUILD
+"cmake.exe" --build build_host_w --target ALL_BUILD
 
 copy downloads\libtorch\lib\asmjit.dll build_host_w
 copy downloads\libtorch\lib\c10.dll build_host_w

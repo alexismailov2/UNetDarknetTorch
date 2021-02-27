@@ -16,7 +16,7 @@ else()
    find_package(OpenCV REQUIRED PATHS ${CUSTOM_OPENCV_BUILD_PATH} NO_DEFAULT_PATH)
 endif()
 
-find_package(TIFF REQUIRED)
+#find_package(TIFF REQUIRED)
 find_package(Boost REQUIRED)
 
 file(GLOB_RECURSE PUBLIC_INCLUDES include/*.hpp)
