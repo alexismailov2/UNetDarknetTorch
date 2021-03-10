@@ -1,7 +1,7 @@
-torch_path=$1
-opencv_path=$2
+torch_path=$2
+opencv_path=$1
 
-if [ -z "$1" ]; then
+if [ -z "$2" ]; then
     echo "Parameter path to libtorch was not set";
 
 if [ -d "./downloads/libtorch" ]; then
@@ -10,11 +10,11 @@ else
     mkdir -p downloads
     cd downloads
     #wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.6.0%2Bcpu.zip
-    #wget https://download.pytorch.org/libtorch/cu102/libtorch-cxx11-abi-shared-with-deps-1.6.0.zip
-    wget https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.6.0.zip
+    wget https://download.pytorch.org/libtorch/cu102/libtorch-cxx11-abi-shared-with-deps-1.8.0.zip
+    #wget https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.6.0.zip
     #unzip libtorch-cxx11-abi-shared-with-deps-1.6.0+cpu.zip
-    #unzip libtorch-cxx11-abi-shared-with-deps-1.6.0.zip
-    unzip libtorch-macos-1.6.0.zip
+    unzip libtorch-cxx11-abi-shared-with-deps-1.8.0.zip
+    #unzip libtorch-macos-1.6.0.zip
     cd ..
 fi
   torch_path=./downloads/libtorch
