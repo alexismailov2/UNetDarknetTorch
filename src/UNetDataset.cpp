@@ -101,6 +101,31 @@ auto colorsToMasks(cv::Mat const& colorMasks, std::vector<cv::Scalar> const& cla
    return masks;
 }
 
+auto multipleColorsToMasks(cv::Mat const& colorMasks, std::map<std::string, std::vector<cv::Scalar>> const& classColors, cv::Size const& size) -> cv::Mat
+{
+   int sz[] = {static_cast<int>(classColors.size()), size.width, size.height};
+   cv::Mat masks = cv::Mat::zeros(3, sz, CV_8UC1);
+
+   auto const rows = masks.size[2];
+   auto const cols = masks.size[1];
+   auto const channels = masks.size[0];
+
+   auto ch = 0;
+   for (auto currentClassColors : classColors)
+   {
+      cv::Mat currentClassMask = cv::Mat(rows, cols, CV_8UC1, const_cast<uint8_t*>(masks.ptr<uint8_t>(ch, 0, 0)));
+      for (auto const& currentColor : currentClassColors.second)
+      {
+         cv::Mat binaryMask;
+         cv::inRange(colorMasks, currentColor, currentColor, binaryMask);
+         currentClassMask |= binaryMask;
+      }
+      ++ch;
+   }
+   masks.convertTo(masks, CV_32FC1, 1.0 / 255.0);
+   return masks;
+}
+
 auto toClassesMapsThreshold(cv::Mat const& score,
                             cv::Size const& inputSize,
                             std::vector<float> threshold) -> std::vector<cv::Mat>
