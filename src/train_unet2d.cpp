@@ -51,16 +51,20 @@ auto toClassesMapsThreshold(cv::Mat const& score,
    auto const rows = score.size[3];
    auto const cols = score.size[2];
    auto const channels = score.size[1];
-
-   std::vector<cv::Mat> classesMaps(static_cast<size_t>(channels));
-   for (auto ch = 0; ch < channels; ++ch)
+   auto const batches = score.size[0];
+   auto step0 = score.step.p[0];
+   auto classesMaps = std::vector<cv::Mat>(static_cast<size_t>(channels) * batches);
+   for (auto bt = 0; bt < batches; ++bt)
    {
-      cv::Mat channelScore = cv::Mat(rows, cols, CV_32FC1, const_cast<float *>(score.ptr<float>(0, ch, 0)));
-      cv::inRange(channelScore, threshold[ch], 1000000.0, classesMaps[ch]);
-      if ((inputSize.width != 0) && (inputSize.height != 0))
-      {
-         cv::resize(classesMaps[ch], classesMaps[ch], inputSize);
-      }
+       for (auto ch = 0; ch < channels; ++ch)
+       {
+           cv::Mat channelScore = cv::Mat(rows, cols, CV_32FC1, const_cast<float *>(score.ptr<float>(bt, ch, 0)));
+           cv::inRange(channelScore, threshold[ch], 1000000.0, classesMaps[ch + (bt*channels)]);
+           if ((inputSize.width != 0) && (inputSize.height != 0))
+           {
+               cv::resize(classesMaps[ch], classesMaps[ch], inputSize);
+           }
+       }
    }
    return classesMaps;
 }
@@ -663,7 +667,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         selectedClassAndThresholdIt += 2)
    {
       classColors.push_back(colorsToClass[*selectedClassAndThresholdIt]);
-      thresholds.push_back(/*std::stof(*std::next(selectedClassAndThresholdIt))*/0.3);
+      thresholds.push_back(std::stof(*std::next(selectedClassAndThresholdIt)));
    }
 
    int batchSize = params["--batch-count"].empty() ? 1 : std::stoi(params["--batch-count"][0]);
@@ -720,21 +724,24 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       auto i = 0;
       valid(model, device, *valid_loader, [&](torch::Tensor& predict, torch::Tensor& targets)
       {
+        auto const batches = predict.size(0);
         auto const height = predict.size(2);
         auto const width = predict.size(3);
-        int sz[] = {1, static_cast<int>(classColors.size()), width, height};
-        cv::Mat predictMat = cv::Mat(4, sz, CV_32FC1, predict.contiguous().cpu().data_ptr());
+        int sz[] = {batches, static_cast<int>(classColors.size()), width, height};
+        auto predictCpu = predict.contiguous().cpu();
+        cv::Mat predictMat = cv::Mat(4, sz, CV_32FC1, predictCpu.data_ptr());
         auto masks = toClassesMapsThreshold(predictMat, {}, thresholds);
-        for (auto i = 0U; i < masks.size(); ++i)
+        for (auto ii = 0U; ii < masks.size(); ++ii)
         {
-           cv::imshow(std::string("Predict_") + std::to_string(i), masks[i]);
+           cv::imshow(std::string("Predict_") + std::to_string(ii % classColors.size()) + "_" + std::to_string(ii / classColors.size()), masks[ii]);
         }
 
-        predictMat = cv::Mat(4, sz, CV_32FC1, targets.contiguous().cpu().data_ptr());
-        masks = toClassesMapsThreshold(predictMat, {}, thresholds);
-        for (auto i = 0U; i < masks.size(); ++i)
+        auto targetsCpu = targets.contiguous().cpu();
+        cv::Mat targetMat = cv::Mat(4, sz, CV_32FC1, targetsCpu.data_ptr());
+        masks = toClassesMapsThreshold(targetMat, {}, thresholds);
+        for (auto ii = 0U; ii < masks.size(); ++ii)
         {
-           cv::imshow(std::string("Target_") + std::to_string(i), masks[i]);
+           cv::imshow(std::string("Target_") + std::to_string(ii % classColors.size()) + "_" + std::to_string(ii / classColors.size()), masks[ii]);
         }
         cv::waitKey(1);
         ++i;
