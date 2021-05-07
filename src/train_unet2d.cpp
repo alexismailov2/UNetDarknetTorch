@@ -605,19 +605,19 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    {
       std::cout << "Skipped apply option --convert-images since values count less than 6 or values count - 4 not even!" << std::endl;
    }
+
    if (params["--epochs"].empty() || (std::stoi(params["--epochs"][0]) == 0))
    {
       std::cout << "Skip training since epochs option absent count equal to 0!" << std::endl;
-      return;
+     // return;
    }
    const auto kNumberOfEpochs = std::stoi(params["--epochs"][0]);
 
    if (params["--checkpoints-output"].empty())
    {
-      throw_an_error("Skip training since --checkpoints-output has not been set!");
-      return;
+      std::cout <<"Skip training since --checkpoints-output has not been set!" << std::endl;
+      //return;
    }
-   std::string outputDirectory = params["--checkpoints-output"][0];
    if (colorsToClass.empty())
    {
       throw_an_error("Skip training since --colors-to-class-map has not been set!");
@@ -684,6 +684,17 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       isGrayscale = (params["--grayscale"][0] == "yes");
    }
 
+   bool isEval = false;
+   std::vector<float> thresholdEvalSteps(thresholds.size());
+   if (!params["--eval"].empty())
+   {
+       isEval = (params["--eval"][0] == "yes");
+       for (auto i = 0; i < thresholds.size(); ++i)
+       {
+           thresholdEvalSteps[i] = (1.0f - thresholds[i]) / kNumberOfEpochs;
+       }
+   }
+
    auto size = cv::Size{std::stoi(params["--size-downscaled"][0]),
                         std::stoi(params["--size-downscaled"][1])};
 
@@ -699,28 +710,33 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    Darknet model = Darknet(params["--model-darknet"][0], cv::Size{0, 0}, true);
    std::cout << model->_moduleList << std::endl;
 
-   model->to(device);
-
    if (params["--model-darknet"].size() == 2)
    {
        model->load_weights(params["--model-darknet"][1]);
+       model->save_weights(params["--model-darknet"][1] + "saved");
    }
+
+   model->to(device);
 
    std::cout << "UNet2d: " << c10::str(model) << std::endl;
 
    torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(0.00001));
    std::map<std::string, std::vector<cv::Point>> trainingLossData;
-
+   std::string outputDirectory = params["--checkpoints-output"][0];
    for (size_t epoch = 1U; epoch <= kNumberOfEpochs; ++epoch)
    {
-      train(epoch, model, device, *train_loader, optimizer, [](int32_t count, int32_t current) {
-        if ((current % (count / 10)) == 0)
-        {
-           std::cout << "\rProgress: [" << count << " / " << current << "]" << std::endl;
-        }
-        cv::waitKey(1);
-      });
-      std::cout << std::endl;
+      if (!isEval)
+      {
+          train(epoch, model, device, *train_loader, optimizer, [](int32_t count, int32_t current) {
+              if ((current % (count / 10)) == 0)
+              {
+                  std::cout << "\rProgress: [" << count << " / " << current << "]" << std::endl;
+              }
+              cv::waitKey(1);
+          });
+          std::cout << std::endl;
+      }
+
       auto i = 0;
       valid(model, device, *valid_loader, [&](torch::Tensor& predict, torch::Tensor& targets)
       {
@@ -745,7 +761,8 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         }
         cv::waitKey(1);
         ++i;
-      }, [&](std::map<std::string, float> metrics) {
+      }, [&](std::map<std::string, float> metrics)
+      {
         static std::map<std::string, cv::Scalar> chartColors = {std::make_pair("bce", cv::Scalar(0x00, 0x00, 0xFF)),
                                                                 std::make_pair("dice", cv::Scalar(0x00, 0xFF, 0x00)),
                                                                 std::make_pair("loss", cv::Scalar(0xFF, 0x00, 0x00))};
@@ -767,13 +784,30 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         static auto bestEpoch = 0;
         if (metrics["loss"] < minLoss)
         {
+           if (!isEval)
+           {
+               fs::remove(outputDirectory + "/" + "best_" + std::to_string(bestEpoch) + ".weights");
+               model->save_weights(outputDirectory + "/" + "best_" + std::to_string(epoch) + ".weights");
+           }
            minLoss = metrics["loss"];
-           fs::remove(outputDirectory + "/" + "best_" + std::to_string(bestEpoch) + ".weights");
            bestEpoch = epoch;
-           model->save_weights(outputDirectory + "/" + "best_" + std::to_string(epoch) + ".weights");
            std::cout << "Best epoch: " << epoch << std::endl;
         }
       });
+      if (isEval)
+      {
+          std::cout << "Thresholds: ";
+          for (auto const& threshold : thresholds)
+          {
+              std::cout << threshold << ", ";
+          }
+          for (auto ii = 0; ii < thresholds.size(); ++ii)
+          {
+              thresholds[ii] += thresholdEvalSteps[ii];
+          }
+          std::cout << std::endl;
+          continue;
+      }
       fs::create_directory(outputDirectory);
       if (params["best_weights_only"].empty() || (params["best_weights_only"][0] == "no"))
       {

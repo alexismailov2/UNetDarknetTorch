@@ -16,7 +16,6 @@ else()
    find_package(OpenCV REQUIRED PATHS ${CUSTOM_OPENCV_BUILD_PATH} NO_DEFAULT_PATH)
 endif()
 
-#find_package(TIFF REQUIRED)
 find_package(Boost REQUIRED)
 
 file(GLOB_RECURSE PUBLIC_INCLUDES include/*.hpp)
@@ -38,11 +37,11 @@ add_executable(${PROJECT_NAME}2d
 target_compile_features(${PROJECT_NAME}2d PUBLIC cxx_range_for)
 
 set(STD_FILESYSTEM)
-if (NOT APPLE AND NOT WIN32)
+if (NOT APPLE AND NOT MSVC)
    set(STD_FILESYSTEM stdc++fs)
 endif()
 
-if(NOT MSVC AND NOT APPLE)
+if(NOT APPLE AND NOT MSVC)
    set(TIFF_LIB ${TIFF_LIBRARY})
 endif()
 
@@ -64,14 +63,14 @@ target_link_libraries(grubcut
    ${TIFF_LIB}
    ${STD_FILESYSTEM})
 
-# Microfost Visual Studio build system very sophisticated and needed to be apologized for that...
-# Not tested
-#
-#if (MSVC)
-#   file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
-#   add_custom_command(TARGET ${PROJECT_NAME}
-#      POST_BUILD
-#      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#      ${TORCH_DLLS}
-#      $<TARGET_FILE_DIR:${PROJECT_NAME}>)
-#endif (MSVC)
+# Tanks windows for this unneeded workaround
+if(MSVC)
+   file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
+   message(STATUS TORCH_DLLS=${TORCH_DLLS})
+   message(STATUS DESTINATION=${CMAKE_BINARY_DIR})
+   add_custom_command(TARGET ${PROJECT_NAME}2d
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${TORCH_DLLS}
+      ${CMAKE_BINARY_DIR})
+endif(MSVC)

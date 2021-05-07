@@ -380,7 +380,8 @@ struct DarknetImpl : torch::nn::Module
    void load_weights(std::string const& darknetWeightsFile)
    {
       using namespace torch::nn;
-
+      torch::load(_moduleList, darknetWeightsFile + ".pt");
+#if 0
       auto file = std::ifstream(darknetWeightsFile, std::ios::binary);
       int32_t version[3] = {};
       int64_t seen = {};
@@ -391,10 +392,10 @@ struct DarknetImpl : torch::nn::Module
          auto submodules = _moduleList[i]->modules(false);
          for (auto j = 0U; j < submodules.size(); j++)
          {
-            //std::cout << submodules[j]->name() << std::endl;
+            std::cout << submodules[j]->name() << std::endl;
             if (submodules[j]->name() == "torch::nn::Conv2dImpl")
             {
-               //std::cout << "Conv2d: " << std::endl;
+               std::cout << "Conv2d: " << std::endl;
                bool bnFlag = false;
                if (((j + 1) < submodules.size()) &&
                    (submodules[j + 1]->name() == "torch::nn::BatchNorm2dImpl"))
@@ -402,43 +403,56 @@ struct DarknetImpl : torch::nn::Module
                   auto bn = std::dynamic_pointer_cast<BatchNorm2dImpl>(submodules[j + 1]);
                   if (bn != nullptr)
                   {
-                     //std::cout << "\tLoading batch norm 2d" << std::endl;
-                     auto batchNorm2dBias = bn->bias.data().cpu();
-                     auto batchNorm2dWeights = bn->weight.data().cpu();
-                     auto batchNorm2dRunningMean = bn->running_mean.data().cpu();
-                     auto batchNorm2dRunningVar = bn->running_var.data().cpu();
-                     //std::cout << "\t\tbatchNorm2dBias.nbytes(): " << batchNorm2dBias.nbytes() << std::endl;
-                     //std::cout << "\t\tbatchNorm2dWeights.nbytes(): " << batchNorm2dWeights.nbytes() << std::endl;
-                     //std::cout << "\t\tbatchNorm2dRunningMean.nbytes(): " << batchNorm2dRunningMean.nbytes() << std::endl;
-                     //std::cout << "\t\tbatchNorm2dRunningVar.nbytes(): " << batchNorm2dRunningVar.nbytes() << std::endl;
-                     file.readsome((char*)batchNorm2dBias.data_ptr(), batchNorm2dBias.nbytes());
-                     file.readsome((char*)batchNorm2dWeights.data_ptr(), batchNorm2dWeights.nbytes());
-                     file.readsome((char*)batchNorm2dRunningMean.data_ptr(), batchNorm2dRunningMean.nbytes());
-                     file.readsome((char*)batchNorm2dRunningVar.data_ptr(), batchNorm2dRunningVar.nbytes());
+                     std::cout << "\tLoading batch norm 2d" << std::endl;
+                     auto batchNorm2dBias = bn->bias.data_ptr();
+                     auto batchNorm2dWeights = bn->weight.data_ptr();
+                     auto batchNorm2dRunningMean = bn->running_mean.data_ptr();
+                     auto batchNorm2dRunningVar = bn->running_var.data_ptr();
+                     std::cout << "\t\tbn->bias.nbytes(): " << bn->bias.nbytes() << std::endl;
+                     std::cout << "\t\tbn->weight.nbytes(): " << bn->weight.nbytes() << std::endl;
+                     std::cout << "\t\tbn->running_mean.nbytes(): " << bn->running_mean.nbytes() << std::endl;
+                     std::cout << "\t\tbn->running_var.nbytes(): " << bn->running_var.nbytes() << std::endl;
+                     file.readsome((char*)batchNorm2dBias, bn->bias.nbytes());
+                     file.readsome((char*)batchNorm2dWeights, bn->weight.nbytes());
+                     file.readsome((char*)batchNorm2dRunningMean, bn->running_mean.nbytes());
+                     file.readsome((char*)batchNorm2dRunningVar, bn->running_var.nbytes());
+                     bn->bias = bn->bias.cuda();
+                     bn->weight = bn->weight.cuda();
+                     bn->running_mean = bn->running_mean.cuda();
+                     bn->running_var = bn->running_var.cuda();
+                     //bn->bias.set_data(batchNorm2dBias);
+                     //bn->weight.set_data(batchNorm2dWeights);
+                     //bn->running_mean.set_data(batchNorm2dRunningMean);
+                     //bn->running_var.set_data(batchNorm2dRunningVar);
                      bnFlag = true;
                   }
                }
                auto conv2d = std::dynamic_pointer_cast<Conv2dImpl>(submodules[j]);
                if (!bnFlag)
                {
-                  //std::cout << "\tLoading bias: " << std::endl;
-                  auto conv2dBias = conv2d->bias.data().cpu();
-                  //std::cout << "\t\tconv2dBias.nbytes(): " << conv2dBias.nbytes() << std::endl;
-                  file.readsome((char*)conv2dBias.data_ptr(), conv2dBias.nbytes());
+                  std::cout << "\tLoading bias: " << std::endl;
+                  auto conv2dBias = conv2d->bias.data_ptr();
+                  std::cout << "\t\tconv2d->bias.nbytes(): " << conv2d->bias.nbytes() << std::endl;
+                  file.readsome((char*)conv2dBias, conv2d->bias.nbytes());
+                  conv2d->bias = conv2d->bias.cuda();
+                  //conv2d->bias.set_data(conv2dBias);
                }
-               //std::cout << "\tLoading weights: " << std::endl;
-               auto conv2dWeights = conv2d->weight.data().cpu();
-               //std::cout << "\t\tconv2dWeights.nbytes(): " << conv2dWeights.nbytes() << std::endl;
-               file.readsome((char*)conv2dWeights.data_ptr(), conv2dWeights.nbytes());
+               std::cout << "\tLoading weights: " << std::endl;
+               auto conv2dWeights = conv2d->weight.data_ptr();
+               std::cout << "\t\tconv2d->weight.nbytes(): " << conv2d->weight.nbytes() << std::endl;
+               file.readsome((char*)conv2dWeights, conv2d->weight.nbytes());
+               conv2d->weight = conv2d->weight.cuda();
+               //conv2d->weight.set_data(conv2dWeights);
             }
          }
       }
+#endif
    }
 
    void save_weights(std::string const& darknetWeightsFile)
    {
       using namespace torch::nn;
-
+      torch::save(_moduleList, darknetWeightsFile + ".pt");
       auto file = std::ofstream(darknetWeightsFile, std::ios::binary);
       int32_t version[3] = {0, 2, 5};
       int64_t seen = {0};
