@@ -380,6 +380,11 @@ struct DarknetImpl : torch::nn::Module
    void load_weights(std::string const& darknetWeightsFile)
    {
       using namespace torch::nn;
+      if (!fs::exists(darknetWeightsFile + ".pt"))
+      {
+          std::cout << "Skip loading weights since not found!" << std::endl;
+          return;
+      }
       torch::load(_moduleList, darknetWeightsFile + ".pt");
 #if 0
       auto file = std::ifstream(darknetWeightsFile, std::ios::binary);
