@@ -331,6 +331,9 @@ auto throw_an_error = [](std::string const& message)
                            "\n\nOptions"
                            "\n\t--help                                   - Prints this information."
                            "\n\t"
+                           "\n\t--generate-custom-unet=<input-channels-count>,<output-classes-count>,<encoder-decoder-levels-count>,<initial-feature-count>,<model path>"
+                           "\n\t                                         - Creates custom unet model config file(NOTE: without weights!)"
+                           "\n\t"
                            "\n\t--test-dataset-create=<path-images>,<path-masks>,<width>,<height>,<count>,<b>,<g>,<r>,<b>,<g>,<r>..."
                            "\n\t                                         - Creates test dataset with circles, rectangles etc to specified "
                            "\n\t                                         folder pathes."
@@ -406,8 +409,14 @@ auto ParseOptions(int argc, char *argv[]) -> std::map<std::string, std::vector<s
 
 void runOpts(std::map<std::string, std::vector<std::string>> params)
 {
-   if (params["--generate-custom-unet"].size() == 5)
+   if (params.count("--generate-custom-unet"))
    {
+      if (params["--generate-custom-unet"].size() != 5)
+      {
+         throw_an_error(std::string("Expected 5 parameters but provided ") + std::to_string(params["--generate-custom-unet"].size()));
+         return;
+      }
+      fs::create_directories(params["--generate-custom-unet"][4]);
       auto isGrayscale = (std::stoi(params["--generate-custom-unet"][0]) == 1);
       auto classCount = std::stoi(params["--generate-custom-unet"][1]);
       auto levelsCount = std::stoi(params["--generate-custom-unet"][2]);
@@ -515,6 +524,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
                    "################################";
       return;
    }
+
    if ((params["--test-dataset-create"].size() >= 8) && (((params["--test-dataset-create"].size() - 5) % 3) == 0))
    {
       std::vector<cv::Scalar> classColors;
@@ -532,6 +542,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
                                      std::stoi(params["--test-dataset-create"][3])},
                             classColors,
                             std::stoi(params["--test-dataset-create"][4]));
+      return;
    }
    if (!params["--count-labels"].empty())
    {
@@ -707,6 +718,11 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    auto train_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(train_dataset), batchSize);
    auto valid_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(valid_dataset), batchSize);
 
+   if (!fs::exists(params["--model-darknet"][0]))
+   {
+       std::cout << "ERROR: " << params["--model-darknet"][0] << " does not exist!" << std::endl;
+       return;
+   }
    Darknet model = Darknet(params["--model-darknet"][0], cv::Size{0, 0}, true);
    std::cout << model->_moduleList << std::endl;
 

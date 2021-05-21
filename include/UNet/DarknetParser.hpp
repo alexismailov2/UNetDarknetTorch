@@ -457,6 +457,8 @@ struct DarknetImpl : torch::nn::Module
    void save_weights(std::string const& darknetWeightsFile)
    {
       using namespace torch::nn;
+      auto const dir = fs::path(darknetWeightsFile).remove_filename().string();
+      fs::create_directories(dir);
       torch::save(_moduleList, darknetWeightsFile + ".pt");
       auto file = std::ofstream(darknetWeightsFile, std::ios::binary);
       int32_t version[3] = {0, 2, 5};
