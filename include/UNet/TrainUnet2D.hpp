@@ -19,3 +19,13 @@ void LabelMeDeleteImage(std::string const& polygonInfo);
 
 void runOpts(std::map<std::string, std::vector<std::string>> params);
 auto ParseOptions(int argc, char *argv[]) -> std::map<std::string, std::vector<std::string>>;
+bool ConvertingXmlLabelmeToJsonLabelme(std::string const& polygonInfo, std::string const& prefixPath);
+void ConvertingXmlLabelmeToJsonLabelmeInFolder(std::string const& polygonInfo, std::string const& prefixPath);
+
+void GetCroppedMaskForSelectedLabelInMultipleDatasetFolders(std::vector<std::pair<std::string, std::string>> const& datasetFolderPathes,
+                                                            std::vector<std::string> const& labels,
+                                                            uint32_t alignFactor = 1,
+                                                            cv::Size downscale = {1, 1},
+                                                            std::map<std::string, cv::Scalar> const& colorToClass = {},
+                                                            std::function<bool(cv::Mat const&)>&& skipPredicat = [](cv::Mat const&) -> bool { return false; });
+void ShuffleAndSplitIntoTrainAndValid(std::string path, size_t divisor = 10);

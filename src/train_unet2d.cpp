@@ -70,7 +70,7 @@ auto toClassesMapsThreshold(cv::Mat const& score,
 }
 
 template <typename DataLoader>
-void train(size_t epoch, Darknet& model, torch::Device device, DataLoader& data_loader, torch::optim::Optimizer& optimizer, std::function<void(int32_t, int32_t)>&& step = [](int32_t, int32_t){})
+void train(size_t epoch, Darknet& model, torch::Device device, DataLoader& data_loader, size_t size, torch::optim::Optimizer& optimizer, std::function<void(int32_t, int32_t)>&& step = [](int32_t, int32_t){})
 {
    std::cout << "=======================" << std::endl;
    std::cout << "Epoch: " << epoch << std::endl;
@@ -78,7 +78,8 @@ void train(size_t epoch, Darknet& model, torch::Device device, DataLoader& data_
 
    std::cout << "device:" << device << std::endl;
    model->train();
-   auto const count = std::distance(data_loader.begin(), data_loader.end());
+   // TODO: std::distance(data_loader.begin(), data_loader.end()); - Very very slow
+   auto const count = size; //std::distance(data_loader.begin(), data_loader.end());
    auto current = 0;
    for (auto& batch : data_loader)
    {
@@ -92,13 +93,14 @@ void train(size_t epoch, Darknet& model, torch::Device device, DataLoader& data_
       optimizer.step();
       step(count, current++);
    }
-   printMetrics(metrics, std::distance(data_loader.begin(), data_loader.end()));
+   printMetrics(metrics, size/*std::distance(data_loader.begin(), data_loader.end())*/);
 }
 
 template <typename DataLoader>
 void valid(Darknet& model,
            torch::Device device,
            DataLoader& data_loader,
+           size_t size,
            std::function<void(torch::Tensor&, torch::Tensor&)>&& handler = [](torch::Tensor&, torch::Tensor&){},
            std::function<void(std::map<std::string, float>)>&& metricsHandler = [](auto&&){})
 {
@@ -117,7 +119,8 @@ void valid(Darknet& model,
       calcLoss(output, targets, metrics);
       handler(output, targets);
    }
-   auto datasetSize = std::distance(data_loader.begin(), data_loader.end());
+   // TODO: std::distance(data_loader.begin(), data_loader.end()); - very slow
+   auto datasetSize = size; //std::distance(data_loader.begin(), data_loader.end());
    printMetrics(metrics, datasetSize);
    metrics["bce"]/=datasetSize;
    metrics["dice"]/=datasetSize;
@@ -138,6 +141,156 @@ auto toColorMask(std::vector<cv::Mat> const& masks, std::vector<cv::Scalar> cons
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <random>
+
+bool ConvertingXmlLabelmeToJsonLabelme(std::string const& polygonInfo, std::string const& prefixPath)
+{
+    auto file = fs::path(polygonInfo).filename().string();
+    std::cout << file << std::endl;
+    auto dir = fs::path(polygonInfo).remove_filename().string() + "../Data/";
+    fs::create_directories(dir);
+    boost::property_tree::ptree pt;
+    try
+    {
+        boost::property_tree::read_xml(polygonInfo, pt);
+    }
+    catch (boost::property_tree::xml_parser::xml_parser_error& ex)
+    {
+        std::cout << ex.message() << std::endl;
+        return false;
+    }
+    boost::property_tree::ptree out;
+    out.put("version", "4.5.6");
+    out.put("flags", "{}");
+    out.put("imagePath", "");
+    out.put("imageData", "null");
+    out.put("imageHeight", "0");
+    out.put("imageWidth", "0");
+
+    std::string imagePath;
+    std::string imageDir;
+    std::string imageFile;
+    boost::property_tree::ptree ptShapes;
+    for (auto const& annotation : pt.get_child("annotation"))
+    {
+        if (annotation.first == "object")
+        {
+#if 0
+            //    {
+//        "shapes": [
+//        {
+//            "label": "0_cable",
+//            "points": [
+//            [
+//                "0.0",
+//                "280.73394495412845"
+//            ],
+//            [
+//                "748.6238532110091",
+//                "285.3211009174312"
+//            ],
+//            [
+//                "1446.788990825688",
+//                "318.348623853211"
+//            ],
+//            [
+//                "1445.8715596330273",
+//                "556.880733944954"
+//            ],
+//            [
+//                "0.0",
+//                "504.58715596330273"
+//            ]
+//            ],
+//            "group_id": "null",
+//            "shape_type": "polygon",
+//            "flags": ""
+//        }
+//        ],
+//    }
+#endif
+            boost::property_tree::ptree ptShape;
+            for (auto const& object : annotation.second.get_child(""))
+            {
+                if (object.first == "polygon")
+                {
+                    boost::property_tree::ptree ptPolygon;
+                    for (auto const& polygon : object.second.get_child(""))
+                    {
+                        if (polygon.first == "pt")
+                        {
+                            boost::property_tree::ptree ptPoints;
+                            boost::property_tree::ptree ptItemX;
+                            boost::property_tree::ptree ptItemY;
+                            auto x = polygon.second.get<float>("x");
+                            auto y = polygon.second.get<float>("y");
+                            ptItemX.put<float>("", x);
+                            ptItemY.put<float>("", y);
+                            ptPoints.push_back(std::make_pair("", ptItemX));
+                            ptPoints.push_back(std::make_pair("", ptItemY));
+                            ptPolygon.push_back(std::make_pair("", ptPoints));
+                            //std::cout << polygon.first << ": " << x << ", " << y << std::endl;
+                        } else if (polygon.first == "username") {
+                           // std::cout <<  object.first << ": " << "<skip>" << std::endl;
+                        }
+                    }
+                    ptShape.add_child("points", ptPolygon);
+                } else if (object.first == "name") {
+                    auto name = object.second.get_value<std::string>();
+                    ptShape.put<std::string>("label", name);
+                    //std::cout << object.first << ": " << name << std::endl;
+                } else if (object.first == "deleted") {
+                    auto deleted = object.second.get_value<bool>();
+                    //std::cout << object.first << ": " << deleted << std::endl;
+                } else if (object.first == "verified") {
+                    auto verified = object.second.get_value<bool>();
+                    //std::cout << object.first << ": " << verified << std::endl;
+                } else if (object.first == "occluded") {
+                    auto occluded = object.second.get_value<std::string>();
+                    //std::cout << object.first << ": " << occluded << std::endl;
+                } else if (object.first == "id") {
+                    auto id = object.second.get_value<uint32_t>();
+                    //std::cout << object.first << ": " << id << std::endl;
+                } else {
+                   // std::cout <<  object.first << ": " << "<skip>" << std::endl;
+                }
+            }
+            ptShape.put<std::string>("group_id", "null");
+            ptShape.put<std::string>("shape_type", "polygon");
+            ptShape.put<std::string>("flags", "{}");
+            ptShapes.push_back(std::make_pair("", ptShape));
+        } else if (annotation.first == "folder") {
+            imageDir = annotation.second.get_value<std::string>();
+            imagePath = prefixPath + ((!prefixPath.empty()) ? "\/" : "") + imageDir + ((!imageDir.empty()) ? "\/" : "") + imageFile;
+            out.put("imagePath", imagePath);
+            //std::cout << annotation.first << ": " << imageDir << std::endl;
+        } else if (annotation.first == "filename") {
+            imageFile = annotation.second.get_value<std::string>();
+            //std::cout << annotation.first << ": " << imageFile << std::endl;
+        } else if (annotation.first == "imagesize") {
+            auto imageHeight = annotation.second.get<uint32_t>("nrows");
+            auto imageWidth = annotation.second.get<uint32_t>("ncols");
+            out.put("imageHeight", imageHeight);
+            out.put("imageWidth", imageWidth);
+            //std::cout << annotation.first << ": " << imageWidth << ", " << imageHeight << std::endl;
+        } else {
+           // std::cout << annotation.first << ": " << " <skiped>" << std::endl;
+        }
+    }
+    auto dataFile = fs::path(imageFile).replace_extension(".json").string();
+    out.add_child("shapes",ptShapes);
+    boost::property_tree::write_json(dir + "/" + dataFile, out);
+    return true;
+}
+
+void ConvertingXmlLabelmeToJsonLabelmeInFolder(std::string const& directory, std::string const& prefixPath)
+{
+    for (auto const& file : fs::directory_iterator(directory))
+    {
+        ConvertingXmlLabelmeToJsonLabelme(file.path().string(), prefixPath);
+    }
+}
 
 bool CountingLabeledObjects(std::map<std::string, uint32_t>& map, std::string const& polygonInfo, bool forImage = false)
 {
@@ -220,6 +373,216 @@ auto ConvertPolygonsToMask(std::string const& polygonInfo, std::map<std::string,
    return mask.clone();
 }
 
+auto ConvertPolygonsToRects(std::string const& polygonInfo, bool isUnionRectNeededByClass = false) -> std::pair<cv::Size, std::map<std::string, std::vector<cv::Rect>>>
+{
+    std::map<std::string, std::vector<cv::Rect>> rectsMap;
+    boost::property_tree::ptree pt;
+    try
+    {
+        boost::property_tree::read_json(polygonInfo, pt);
+    }
+    catch (boost::property_tree::json_parser::json_parser_error& ex)
+    {
+        return std::make_pair(cv::Size{}, rectsMap);
+    }
+    auto shapes = pt.get_child("shapes");
+    for (auto const& shape : shapes)
+    {
+        auto points = shape.second.get_child("points");
+        std::vector<cv::Point> cv_points;
+        for (auto const& point : points)
+        {
+            std::vector<float> vecxy;
+            for (const auto& pointxy : point.second) {
+                vecxy.emplace_back(pointxy.second.get_value<float>());
+            }
+            cv_points.emplace_back(cv::Point{static_cast<int>(vecxy[0]), static_cast<int>(vecxy[1])});
+        }
+        auto const label = shape.second.get<std::string>("label");
+        if (isUnionRectNeededByClass)
+        {
+            if (rectsMap[label].empty())
+            {
+                rectsMap[label].emplace_back(cv::boundingRect(std::vector<cv::Point>{cv_points}));
+            }
+            else
+            {
+                rectsMap[label].front() |= cv::boundingRect(std::vector<cv::Point>{cv_points});
+            }
+        }
+        else
+        {
+            rectsMap[label].emplace_back(cv::boundingRect(std::vector<cv::Point>{cv_points}));
+        }
+    }
+    return std::make_pair(cv::Size(pt.get<int>("imageWidth"), pt.get<int>("imageHeight")), rectsMap);
+}
+
+void ConvertPolygonsToBoundingBoxesYoloDarknet(std::vector<std::pair<std::string, std::string>> const& datasetFolderPathes,
+                                               std::vector<std::string> const& labels,
+                                               std::string const& outputFolder = "G:/Datasets/FOLDER_WITHOUT_CRAZY_SPACEBARS/Biggest_Dataset")
+{
+    auto trainList = std::vector<std::string>{};
+    for (auto datasetFolderPath : datasetFolderPathes)
+    {
+        fs::create_directories(datasetFolderPath.second + "/labels");
+        for (auto file : fs::directory_iterator(datasetFolderPath.first))
+        {
+            if (fs::is_directory(file))
+            {
+                continue;
+            }
+            auto imageFileName = file.path().filename();
+            imageFileName.replace_extension(".bmp");
+            trainList.emplace_back(datasetFolderPath.second + "/labels/" + imageFileName.string());
+            auto labelFileName = file.path().filename();
+            labelFileName.replace_extension(".txt");
+            auto yoloDarknetFile = std::ofstream(datasetFolderPath.second + "/labels/" + labelFileName.string());
+            auto rects = ConvertPolygonsToRects(file.path().string());
+            for (auto i = 0; i < labels.size(); ++i)
+            {
+                for (auto const& item : rects.second[labels[i]])
+                {
+                    yoloDarknetFile << i << " "
+                                    << (static_cast<float>(item.x + item.width/2))/rects.first.width << " "
+                                    << (static_cast<float>(item.y + item.height/2))/rects.first.height << " "
+                                    << (static_cast<float>(item.width)/rects.first.width) << " "
+                                    << (static_cast<float>(item.height)/rects.first.height) << std::endl;
+                }
+            }
+        }
+        //darknet.exe detector calc_anchors "G:/Datasets/FOLDER_WITHOUT_CRAZY_SPACEBARS/all_dataset_in_one/YoloData/obj.data" -num_of_clusters 9 -width 416 -height 416
+        //darknet.exe detector train "G:/Datasets/FOLDER_WITHOUT_CRAZY_SPACEBARS/all_dataset_in_one/YoloData/obj.data" "G:/Datasets/FOLDER_WITHOUT_CRAZY_SPACEBARS/all_dataset_in_one/YoloData/yolov4-custom.cfg" ""G:/Datasets/FOLDER_WITHOUT_CRAZY_SPACEBARS/all_dataset_in_one/YoloData/yolov4.conv.137" -map
+    }
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(trainList.begin(), trainList.end(), g);
+    auto trainListFile = std::ofstream(outputFolder + "/trainList.txt");
+    auto iteratorSplit = std::prev(trainList.cend(), (trainList.size() / 10));
+    std::copy(trainList.cbegin(), iteratorSplit, std::ostream_iterator<std::string>(trainListFile, "\n"));
+    auto validListFile = std::ofstream(outputFolder + "/validList.txt");
+    std::copy(iteratorSplit, trainList.cend(), std::ostream_iterator<std::string>(validListFile, "\n"));
+    auto namesFile = std::ofstream(outputFolder + "/obj.names");
+    std::copy(labels.cbegin(), labels.cend(), std::ostream_iterator<std::string>(namesFile, "\n"));
+    auto dataFile = std::ofstream(outputFolder + "/obj.data");
+    dataFile << "classes " << labels.size() << "\n"
+             << "train  = " << outputFolder + "/trainList.txt" << "\n"
+             << "valid  = " << outputFolder + "/validList.txt" << "\n"
+             << "names = " << outputFolder + "/obj.names" << "\n"
+             << "backup = " << outputFolder + "/backup" << std::endl;
+    fs::create_directories(outputFolder + "/backup");
+}
+
+void GetCroppedMaskForSelectedLabelInMultipleDatasetFolders(std::vector<std::pair<std::string, std::string>> const& datasetFolderPathes,
+                                                            std::vector<std::string> const& labels,
+                                                            uint32_t alignFactor = 1,
+                                                            cv::Size downscale = {1, 1},
+                                                            std::map<std::string, cv::Scalar> const& colorToClass = {},
+                                                            uint32_t rotate = 0,
+                                                            std::function<bool(cv::Mat const&)>&& skipPredicat = [](cv::Mat const&) -> bool { return false; })
+{
+    switch(rotate)
+    {
+        case 90:
+            std::swap(downscale.width, downscale.height);
+            break;
+        case 0:
+        default:
+            break;
+    }
+    for (auto datasetFolderPath : datasetFolderPathes)
+    {
+        fs::create_directories(datasetFolderPath.second + "/images");
+        fs::create_directories(datasetFolderPath.second + "/masks");
+        for (auto file : fs::directory_iterator(datasetFolderPath.first))
+        {
+            if (fs::is_directory(file))
+            {
+                continue;
+            }
+            auto rects = ConvertPolygonsToRects(file.path().string(), true);
+            cv::Rect cropRect;
+            for(auto& label : labels)
+            {
+                if (rects.second[label].empty())
+                {
+                    continue;
+                }
+                cropRect |= rects.second[label].front();
+            }
+            cv::Mat mask = ConvertPolygonsToMask(file.path().string(), colorToClass);
+            if (skipPredicat(mask))
+            {
+                continue;
+            }
+            auto filename = file.path().filename().string();
+            filename = filename.substr(0, filename.size() - 4);
+            cropRect.width = std::min(mask.cols - 1 - cropRect.x, cropRect.width);
+            cropRect.height = std::min(mask.rows - 1 - cropRect.y, cropRect.height);
+            auto widthModAlignFactor = cropRect.width % (alignFactor * downscale.width);
+            auto neededWidthAddition = (alignFactor * downscale.width) - widthModAlignFactor;
+            auto heightModAlignFactor = cropRect.height % (alignFactor * downscale.height);
+            auto neededHeightAddition = (alignFactor * downscale.height) - heightModAlignFactor;
+            if (widthModAlignFactor != 0)
+            {
+                if ((cropRect.width + cropRect.x + neededWidthAddition) > mask.cols)
+                {
+                    cropRect.width -= widthModAlignFactor;
+                }
+                else
+                {
+                    cropRect.width += neededWidthAddition;
+                }
+            }
+            if (heightModAlignFactor != 0)
+            {
+                if ((cropRect.height + cropRect.y + neededHeightAddition) > mask.rows)
+                {
+                    cropRect.height -= heightModAlignFactor;
+                }
+                else
+                {
+                    cropRect.height += neededHeightAddition;
+                }
+            }
+            if (cropRect.width > mask.cols) {
+                std::cout << "Really?" << std::endl;
+            }
+            if (cropRect.height > mask.rows) {
+                std::cout << "Really?" << std::endl;
+            }
+            //auto downscaleModX = (downscale.width > 1) ? (cropRect.width % downscale.width) : 0;
+            //cropRect.width -= downscaleModX;
+            //cropRect.width /= downscale.width;
+            //auto downscaleModY = cropRect.y % downscale.height;
+            if ((cropRect.width == 0) || (cropRect.height == 0))
+            {
+                std::cout << "Skipped cropping for image: " << file.path() << std::endl;
+                continue;
+            }
+            cv::Mat maskCropped = mask(cropRect);
+            cv::resize(maskCropped, maskCropped, cv::Size{maskCropped.cols / downscale.width, maskCropped.rows / downscale.height}, cv::INTER_NEAREST);
+            boost::property_tree::ptree pt;
+            boost::property_tree::read_json(file.path().string(), pt);
+            auto imagePath = pt.get<std::string>("imagePath");
+            cv::Mat imageCropped = cv::imread(imagePath, cv::IMREAD_COLOR);
+            imageCropped = imageCropped(cropRect);
+            cv::resize(imageCropped, imageCropped, cv::Size{imageCropped.cols / downscale.width, imageCropped.rows / downscale.height}, cv::INTER_NEAREST);
+            switch(rotate) {
+                case 90:
+                    cv::rotate(maskCropped, maskCropped, cv::ROTATE_90_CLOCKWISE);
+                    cv::rotate(imageCropped, imageCropped, cv::ROTATE_90_CLOCKWISE);
+                    break;
+                case 0:
+                default:
+                    break;
+            }
+            cv::imwrite(datasetFolderPath.second + "/masks/" + filename + "png", maskCropped);
+            cv::imwrite(datasetFolderPath.second + "/images/" + filename + "png", imageCropped);
+        }
+    }
+}
+
 auto CountingLabeledObjectsInMultipleDatasetFolders(std::vector<std::string> const& datasetFolderPathes) -> std::map<std::string, uint32_t>
 {
    std::map<std::string, uint32_t> countResult;
@@ -292,6 +655,25 @@ void ConvertImagesInMultipleDatasetFolders(std::vector<std::pair<std::string, st
    }
 }
 
+void ShuffleAndSplitIntoTrainAndValid(std::string path, size_t divisor)
+{
+    fs::create_directories(path + "\\ImagesV");
+    fs::create_directories(path + "\\MasksV");
+    std::vector<fs::directory_entry> datasetList(fs::directory_iterator{path + "\\images"}, fs::directory_iterator{});
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(datasetList.begin(), datasetList.end(), g);
+    datasetList.erase(datasetList.cbegin() + datasetList.size() / divisor, datasetList.cend());
+    for(auto const& item : datasetList) {
+        fs::rename(item.path().string(),
+                   path + "\\ImagesV\\" + item.path().filename().string());
+        fs::rename(path + "\\masks\\" + item.path().filename().string(),
+                   path + "\\MasksV\\" + item.path().filename().string());
+    }
+    fs::rename(path + "\\images", path + "\\ImagesT");
+    fs::rename(path + "\\masks", path + "\\MasksT");
+}
+
 void iterateOverLinesInContours(std::vector<cv::Point> contour, std::function<void(cv::Point const& p1, cv::Point const& p2)>&& callback)
 {
    if (contour.size() < 2)
@@ -342,6 +724,17 @@ auto throw_an_error = [](std::string const& message)
                            "\n\t"
                            "\n\t--convert-images=<left>,<top>,<width>,<height>,<path-images>,<path-masks>..."
                            "\n\t                                         - Select directories for convertation images to needed size."
+                           "\n\t"
+                           "\n\t--shuffle-and-split=<path>,<divisor>     - Shuffle and split dataset intro train and validation."
+                           "\n\t"
+                           "\n\t--convert-labelme-xml-to-json=<path>,[<path>]"
+                           "\n\t                                         - Convert labelme xml to json."
+                           "\n\t"
+                           "\n\t--convert-polygons-to-yolo-darknet-boundingboxes=<path>,[<path>]"
+                           "\n\t                                         - Convert to yolo darknet bounding boxes format"
+                           "\n\t"
+                           "\n\t--crop-classes-list=<classname>,[<classname>]"
+                           "\n\t                                         - class names list"
                            "\n\t"
                            "\n\t--model-darknet=<path-to-darknet-model>[,<pretrained-weights-path>]"
                            "\n\t                                         - Path to darknet unet model."
@@ -541,6 +934,20 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       {
          std::cout << "\t" << item.first << " : " << item.second << std::endl;
       }
+      return;
+   }
+   if (params.count("--convert-polygons-to-yolo-darknet-boundingboxes") &&
+       ((params["--convert-polygons-to-yolo-darknet-boundingboxes"].size() % 2) == 0) &&
+       !params["--crop-classes-list"].empty())
+   {
+       auto pathesList = std::vector<std::pair<std::string, std::string>>{};
+       auto& inputAndOutputPathes = params["--convert-polygons-to-yolo-darknet-boundingboxes"];
+       for(auto i = 0; i < inputAndOutputPathes.size(); i += 2)
+       {
+           pathesList.emplace_back(std::make_pair(inputAndOutputPathes[i], inputAndOutputPathes[i+1]));
+       }
+       ConvertPolygonsToBoundingBoxesYoloDarknet(pathesList, params["--crop-classes-list"]);
+       return;
    }
    std::map<std::string, cv::Scalar> colorsToClass;
    if (!params["--colors-to-class-map"].empty() && (params["--colors-to-class-map"].size() % 4) == 0)
@@ -579,33 +986,100 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    {
       std::cout << "Skipped apply option --convert-polygons-to-masks since values count less than 6 or values count - 4 not even!" << std::endl;
    }
-   if ((params["--convert-images"].size() >= 6) && (((params["--convert-images"].size() - 4) % 2) == 0))
+   if (params.count("--convert-images"))
    {
-      auto newSize = cv::Size{};
-      if (params["--size-downscaled"].size() == 2)
-      {
-          newSize = cv::Size{std::stoi(params["--size-downscaled"][0]),
-                             std::stoi(params["--size-downscaled"][1])};
-      }
+       if ((params["--convert-images"].size() >= 6) && (((params["--convert-images"].size() - 4) % 2) == 0))
+       {
+           auto newSize = cv::Size{};
+           if (params["--size-downscaled"].size() == 2)
+           {
+               newSize = cv::Size{std::stoi(params["--size-downscaled"][0]),
+                                  std::stoi(params["--size-downscaled"][1])};
+           }
 
-      auto roi = cv::Rect{std::stoi(params["--convert-images"][0]),
-                          std::stoi(params["--convert-images"][1]),
-                          std::stoi(params["--convert-images"][2]),
-                          std::stoi(params["--convert-images"][3])};
-      std::vector<std::pair<std::string, std::string>> imagesPathsInputAndOutput;
-      for (auto imagesInputAndOutputIt = std::next(params["--convert-images"].cbegin(), 4);
-           imagesInputAndOutputIt != params["--convert-images"].cend();
-           imagesInputAndOutputIt += 2)
-      {
-         imagesPathsInputAndOutput.emplace_back(std::make_pair(*imagesInputAndOutputIt, *std::next(imagesInputAndOutputIt)));
-      }
-      ConvertImagesInMultipleDatasetFolders(imagesPathsInputAndOutput, roi, (!params["--clahe"].empty() && params["--clahe"][0] == "yes"), newSize);
+           auto roi = cv::Rect{std::stoi(params["--convert-images"][0]),
+                               std::stoi(params["--convert-images"][1]),
+                               std::stoi(params["--convert-images"][2]),
+                               std::stoi(params["--convert-images"][3])};
+           std::vector<std::pair<std::string, std::string>> imagesPathsInputAndOutput;
+           for (auto imagesInputAndOutputIt = std::next(params["--convert-images"].cbegin(), 4);
+                imagesInputAndOutputIt != params["--convert-images"].cend();
+                imagesInputAndOutputIt += 2)
+           {
+               imagesPathsInputAndOutput.emplace_back(
+                       std::make_pair(*imagesInputAndOutputIt, *std::next(imagesInputAndOutputIt)));
+           }
+           ConvertImagesInMultipleDatasetFolders(imagesPathsInputAndOutput, roi,
+                                                 (!params["--clahe"].empty() && params["--clahe"][0] == "yes"),
+                                                 newSize);
+       }
+       else
+       {
+           std::cout << "Skipped apply option --convert-images since values count less than 6 or values count - 4 not even!" << std::endl;
+       }
    }
-   else
+   if (params.count("--shuffle-and-split"))
    {
-      std::cout << "Skipped apply option --convert-images since values count less than 6 or values count - 4 not even!" << std::endl;
+       if (params["--shuffle-and-split"].size() == 2)
+       {
+          ShuffleAndSplitIntoTrainAndValid(params["--shuffle-and-split"][0], std::stoi(params["--shuffle-and-split"][1]));
+       }
+       else
+       {
+           std::cout << "Expected two parameters!" << std::endl;
+       }
+       return;
    }
-
+   if (params.count("--convert-labelme-xml-to-json"))
+   {
+#if 0
+       auto pathToDatasetList = std::vector<std::string>{
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_101_jobs_103(only109photos)\\Dataset\\default"
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_117_jobs_133\\Dataset\\default",
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_138_jobs_214\\Dataset\\default",
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_138_jobs_215\\Dataset\\default",
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_157_jobs_255\\Dataset\\default",
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_157_jobs_256\\Dataset\\default",
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_157_jobs_257\\Dataset\\default",
+//        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\a_makazan\\tasks_157_jobs_258\\Dataset\\default",
+        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\gashingrigorii\\tasks_75_jobs_65\\Dataset\\default",
+        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\gashingrigorii\\tasks_94_jobs_82\\Dataset\\default",
+        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\gashingrigorii\\tasks_102_jobs_104\\Dataset\\default",
+        "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\gashingrigorii\\tasks_154_jobs_249\\Dataset\\default",
+ //       "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\magic07\\tasks_140_jobs_220\\Dataset\\default",
+ //       "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\natalie6562\\tasks_119_jobs_135(empty)\\Dataset\\default",
+ //       "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\natalie6562\\tasks_159_jobs_265\\Dataset\\default",
+ //       "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\natalie6562\\tasks_159_jobs_266\\Dataset\\default",
+ //       "G:\\Datasets\\Cable (U-Net)\\Annotation_31.05.2021\\natalie6562\\tasks_159_jobs_267\\Dataset_rotate\\default"
+    };
+#endif
+       for (auto const& item : params["--convert-labelme-xml-to-json"])
+       {
+           std::cout << "Start conversion dataset: " << item << std::endl;
+           ConvertingXmlLabelmeToJsonLabelmeInFolder(item, "..\/Image");
+       }
+   }
+   if (params.count("--get-cropped-mask-for-selected-labels") &&
+       params.count("--downscaling") &&
+       params.count("--crop-classes-list") &&
+       params.count("--colors-to-class-map") &&
+       params.count("--rotate"))
+   {
+       auto pathesList = std::vector<std::pair<std::string, std::string>>{};
+       auto& inputAndOutputPathes = params["--get-cropped-mask-for-selected-labels"];
+       for(auto i = 0; i < inputAndOutputPathes.size(); i += 2)
+       {
+           pathesList.emplace_back(std::make_pair(inputAndOutputPathes[i], inputAndOutputPathes[i+1]));
+       }
+        GetCroppedMaskForSelectedLabelInMultipleDatasetFolders(pathesList,
+                                                               params["--crop-classes-list"],
+                                                               std::atoi(params["--align-factor"][0].c_str()),
+                                                               cv::Size{std::atoi(params["--downscaling"][0].c_str()),
+                                                                        std::atoi(params["--downscaling"][1].c_str())},
+                                                               colorsToClass,
+                                                               std::atoi(params["--rotate"][0].c_str()));
+       return;
+   }
    if (params["--epochs"].empty() || (std::stoi(params["--epochs"][0]) == 0))
    {
       std::cout << "Skip training since epochs option absent count equal to 0!" << std::endl;
@@ -701,11 +1175,11 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU);
    std::cout << "Using device: " << device << std::endl;
 
-   auto train_dataset = UNetDataset(trainDirectories, classColors, size, isGrayscale).map(torch::data::transforms::Stack<>());
-   auto valid_dataset = UNetDataset(validDirectories, classColors, size, isGrayscale).map(torch::data::transforms::Stack<>());
+   auto train_dataset = UNetDataset(trainDirectories, classColors, size, isGrayscale);
+   auto valid_dataset = UNetDataset(validDirectories, classColors, size, isGrayscale);
 
-   auto train_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(train_dataset), batchSize);
-   auto valid_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(valid_dataset), batchSize);
+   auto train_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(train_dataset.map(torch::data::transforms::Stack<>())), batchSize);
+   auto valid_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(std::move(valid_dataset.map(torch::data::transforms::Stack<>())), batchSize);
 
    Darknet model = Darknet(params["--model-darknet"][0], cv::Size{0, 0}, true);
    std::cout << model->_moduleList << std::endl;
@@ -727,7 +1201,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
    {
       if (!isEval)
       {
-          train(epoch, model, device, *train_loader, optimizer, [](int32_t count, int32_t current) {
+          train(epoch, model, device, *train_loader, train_dataset.count(), optimizer, [](int32_t count, int32_t current) {
               if ((current % (count / 10)) == 0)
               {
                   std::cout << "\rProgress: [" << count << " / " << current << "]" << std::endl;
@@ -738,7 +1212,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       }
 
       auto i = 0;
-      valid(model, device, *valid_loader, [&](torch::Tensor& predict, torch::Tensor& targets)
+      valid(model, device, *valid_loader, valid_dataset.count(), [&](torch::Tensor& predict, torch::Tensor& targets)
       {
         auto const batches = predict.size(0);
         auto const height = predict.size(2);

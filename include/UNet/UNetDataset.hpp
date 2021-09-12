@@ -18,6 +18,9 @@ public:
     auto get(size_t index) -> torch::data::Example<> override;
     auto size() const -> c10::optional<size_t> override;
 
+    auto count() const -> size_t {
+        return _imagesAndMasks.size();
+    }
 private:
     auto getData(std::pair<std::string, std::string> const& imageAndMask) -> torch::data::Example<>;
 
