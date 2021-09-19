@@ -37,14 +37,14 @@ struct HardSwishImpl : torch::nn::Module
 };
 TORCH_MODULE_IMPL(HardSwish, HardSwishImpl);
 
-struct MishImpl : torch::nn::Module
-{
-    auto forward(const torch::Tensor& x) -> torch::Tensor
-    {
-       return x * torch::nn::functional::softplus(x).tanh();
-    }
-};
-TORCH_MODULE_IMPL(Mish, MishImpl);
+//struct MishImpl : torch::nn::Module
+//{
+//    auto forward(const torch::Tensor& x) -> torch::Tensor
+//    {
+//       return x * torch::nn::functional::softplus(x).tanh();
+//    }
+//};
+//TORCH_MODULE_IMPL(Mish, MishImpl);
 
 //struct SigmoidImpl : torch::nn::Module
 //{

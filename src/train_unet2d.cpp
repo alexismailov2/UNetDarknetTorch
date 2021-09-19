@@ -106,8 +106,8 @@ void valid(Darknet& model,
    std::cout << "Validation: " << std::endl;
    std::map<std::string, float> metrics;
 
-   torch::NoGradGuard no_grad;
    model->eval();
+   torch::NoGradGuard no_grad;
    for (const auto& batch : data_loader)
    {
       auto data = batch.data.to(device);
@@ -322,72 +322,73 @@ void TestDatasetCreateList(std::pair<std::string, std::string> const& outputDirs
    }
 }
 
+char const* const help = "\nUsage:\n\ttrain_unet_darknet2d options"
+                         "\n\nNote:"
+                         "\n\t <path-to-checkpoints-output>            - Should have enough storage capacity."
+                         "\n\t"
+                         "\n\nOptions"
+                         "\n\t--help                                   - Prints this information."
+                         "\n\t"
+                         "\n\t--generate-custom-unet=<input-channels-count>,<output-classes-count>,<encoder-decoder-levels-count>,<initial-feature-count>,<model path>"
+                         "\n\t                                         - Creates custom unet model config file(NOTE: without weights!)"
+                         "\n\t"
+                         "\n\t--test-dataset-create=<path-images>,<path-masks>,<width>,<height>,<count>,<b>,<g>,<r>,<b>,<g>,<r>..."
+                         "\n\t                                         - Creates test dataset with circles, rectangles etc to specified "
+                         "\n\t                                         folder pathes."
+                         "\n\t"
+                         "\n\t--count-labels=<path>,<path>,...         - Select directories for counting labels."
+                         "\n\t"
+                         "\n\t--convert-polygons-to-masks=<left>,<top>,<width>,<height>,<path-polygons>,<path-out-masks>,<path-polygons>,<path-out-masks>,..."
+                         "\n\t                                         - Select directories for convertation polygons to masks."
+                         "\n\t"
+                         "\n\t--convert-images=<left>,<top>,<width>,<height>,<path-images>,<path-masks>..."
+                         "\n\t                                         - Select directories for convertation images to needed size."
+                         "\n\t"
+                         "\n\t--model-darknet=<path-to-darknet-model>[,<pretrained-weights-path>]"
+                         "\n\t                                         - Path to darknet unet model."
+                         "\n\t                                           Optionally - path to weights learned previous."
+                         "\n\t"
+                         "\n\t--epochs=<count>                         - Epochs count."
+                         "\n\t"
+                         "\n\t--batch-count=<count>                    - Batch count."
+                         "\n\t"
+                         "\n\t--checkpoints-output=<path-to-checkpoints-output>"
+                         "\n\t                                         - Path to output where will be created checkpoints folder."
+                         "\n\t"
+                         "\n\t--train-directories=<path-images>,<path-masks>,<path-images>,<path-masks>,..."
+                         "\n\t                                         - List with pairs paths to images and to masks."
+                         "\n\t"
+                         "\n\t--valid-directories=<path-images>,<path-masks>,<path-images>,<path-masks>,..."
+                         "\n\t                                         - List with pairs paths to images and to masks."
+                         "\n\t"
+                         "\n\t--colors-to-class-map=<classname>,<b>,<g>,<r>,..."
+                         "\n\t                                         - List with tuple of 4 values class name and 3 color component "
+                         "\n\t                                           coresponded to its mask color in the dataset."
+                         "\n\t"
+                         "\n\t--selected-classes-and-thresholds=<classname>,<threshold>,<classname>,<threshold>,..."
+                         "\n\t                                         - List with pairs class name and threshold."
+                         "\n\t"
+                         "\n\t--size-downscaled=<width>,<height>       - Width and height."
+                         "\n\t"
+                         "\n\t--grayscale=yes|no                       - Turn on|off color mode."
+                         "\n\t"
+                         "\n\t--best_weights_only=yes|no               - Turn on|off saving best weights only."
+                         "\n\t"
+                         "\n\nExample:"
+                         "\n\t./build_host/train_unet_darknet2d \\"
+                         "\n\t --model-darknet=./model/unet3c2cl2l8f.cfg \\"
+                         "\n\t --epochs=100 \\"
+                         "\n\t --checkpoints-output=./checkpoints_128x128_test \\"
+                         "\n\t --train-directories=./dataset/train/imgs,./dataset/train/masks \\"
+                         "\n\t --valid-directories=./dataset/valid/imgs,./dataset/valid/masks \\"
+                         "\n\t --colors-to-class-map=\"circle,0,0,255,rectangle,0,0,255,disk,0,0,255\" \\"
+                         "\n\t --selected-classes-and-thresholds=circle,0.3,rectangle,0.3,disk,0.3 \\"
+                         "\n\t --batch-count=1 \\"
+                         "\n\t --size-downscaled=128,128 \\"
+                         "\n\t --best-weights-only=no";
+
 auto throw_an_error = [](std::string const& message)
 {
-  char const* const help = "\nUsage:\n\ttrain_unet_darknet2d options"
-                           "\n\nNote:"
-                           "\n\t <path-to-checkpoints-output>            - Should have enough storage capacity."
-                           "\n\t"
-                           "\n\nOptions"
-                           "\n\t--help                                   - Prints this information."
-                           "\n\t"
-                           "\n\t--generate-custom-unet=<input-channels-count>,<output-classes-count>,<encoder-decoder-levels-count>,<initial-feature-count>,<model path>"
-                           "\n\t                                         - Creates custom unet model config file(NOTE: without weights!)"
-                           "\n\t"
-                           "\n\t--test-dataset-create=<path-images>,<path-masks>,<width>,<height>,<count>,<b>,<g>,<r>,<b>,<g>,<r>..."
-                           "\n\t                                         - Creates test dataset with circles, rectangles etc to specified "
-                           "\n\t                                         folder pathes."
-                           "\n\t"
-                           "\n\t--count-labels=<path>,<path>,...         - Select directories for counting labels."
-                           "\n\t"
-                           "\n\t--convert-polygons-to-masks=<left>,<top>,<width>,<height>,<path-polygons>,<path-out-masks>,<path-polygons>,<path-out-masks>,..."
-                           "\n\t                                         - Select directories for convertation polygons to masks."
-                           "\n\t"
-                           "\n\t--convert-images=<left>,<top>,<width>,<height>,<path-images>,<path-masks>..."
-                           "\n\t                                         - Select directories for convertation images to needed size."
-                           "\n\t"
-                           "\n\t--model-darknet=<path-to-darknet-model>[,<pretrained-weights-path>]"
-                           "\n\t                                         - Path to darknet unet model."
-                           "\n\t                                           Optionally - path to weights learned previous."
-                           "\n\t"
-                           "\n\t--epochs=<count>                         - Epochs count."
-                           "\n\t"
-                           "\n\t--batch-count=<count>                    - Batch count."
-                           "\n\t"
-                           "\n\t--checkpoints-output=<path-to-checkpoints-output>"
-                           "\n\t                                         - Path to output where will be created checkpoints folder."
-                           "\n\t"
-                           "\n\t--train-directories=<path-images>,<path-masks>,<path-images>,<path-masks>,..."
-                           "\n\t                                         - List with pairs paths to images and to masks."
-                           "\n\t"
-                           "\n\t--valid-directories=<path-images>,<path-masks>,<path-images>,<path-masks>,..."
-                           "\n\t                                         - List with pairs paths to images and to masks."
-                           "\n\t"
-                           "\n\t--colors-to-class-map=<classname>,<b>,<g>,<r>,..."
-                           "\n\t                                         - List with tuple of 4 values class name and 3 color component "
-                           "\n\t                                           coresponded to its mask color in the dataset."
-                           "\n\t"
-                           "\n\t--selected-classes-and-thresholds=<classname>,<threshold>,<classname>,<threshold>,..."
-                           "\n\t                                         - List with pairs class name and threshold."
-                           "\n\t"
-                           "\n\t--size-downscaled=<width>,<height>       - Width and height."
-                           "\n\t"
-                           "\n\t--grayscale=yes|no                       - Turn on|off color mode."
-                           "\n\t"
-                           "\n\t--best_weights_only=yes|no               - Turn on|off saving best weights only."
-                           "\n\t"
-                           "\n\nExample:"
-                           "\n\t./build_host/train_unet_darknet2d \\"
-                           "\n\t --model-darknet=./model/unet3c2cl2l8f.cfg \\"
-                           "\n\t --epochs=100 \\"
-                           "\n\t --checkpoints-output=./checkpoints_128x128_test \\"
-                           "\n\t --train-directories=./dataset/train/imgs,./dataset/train/masks \\"
-                           "\n\t --valid-directories=./dataset/valid/imgs,./dataset/valid/masks \\"
-                           "\n\t --colors-to-class-map=\"circle,0,0,255,rectangle,0,0,255,disk,0,0,255\" \\"
-                           "\n\t --selected-classes-and-thresholds=circle,0.3,rectangle,0.3,disk,0.3 \\"
-                           "\n\t --batch-count=1 \\"
-                           "\n\t --size-downscaled=128,128 \\"
-                           "\n\t --best-weights-only=no";
   std::cout << message + "\nSee usage:\n\n" + help << std::endl;
 };
 
@@ -409,6 +410,11 @@ auto ParseOptions(int argc, char *argv[]) -> std::map<std::string, std::vector<s
 
 void runOpts(std::map<std::string, std::vector<std::string>> params)
 {
+   if (params.count("--help"))
+   {
+       std::cout << help << std::endl;
+       return;
+   }
    if (params.count("--generate-custom-unet"))
    {
       if (params["--generate-custom-unet"].size() != 5)
@@ -731,7 +737,6 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
        model->load_weights(params["--model-darknet"][1]);
        model->save_weights(params["--model-darknet"][1] + "saved");
    }
-
    model->to(device);
 
    std::cout << "UNet2d: " << c10::str(model) << std::endl;
@@ -754,6 +759,7 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
       }
 
       auto i = 0;
+      std::vector<double> lossesByClass(classColors.size());
       valid(model, device, *valid_loader, [&](torch::Tensor& predict, torch::Tensor& targets)
       {
         auto const batches = predict.size(0);
@@ -762,23 +768,35 @@ void runOpts(std::map<std::string, std::vector<std::string>> params)
         int sz[] = {batches, static_cast<int>(classColors.size()), width, height};
         auto predictCpu = predict.contiguous().cpu();
         cv::Mat predictMat = cv::Mat(4, sz, CV_32FC1, predictCpu.data_ptr());
-        auto masks = toClassesMapsThreshold(predictMat, {}, thresholds);
-        for (auto ii = 0U; ii < masks.size(); ++ii)
+        auto masksPredict = toClassesMapsThreshold(predictMat, {}, thresholds);
+        for (auto ii = 0U; ii < masksPredict.size(); ++ii)
         {
-           cv::imshow(std::string("Predict_") + std::to_string(ii % classColors.size()) + "_" + std::to_string(ii / classColors.size()), masks[ii]);
+           cv::imshow(std::string("Predict_") + std::to_string(ii % classColors.size()) + "_" + std::to_string(ii / classColors.size()), masksPredict[ii]);
         }
 
         auto targetsCpu = targets.contiguous().cpu();
         cv::Mat targetMat = cv::Mat(4, sz, CV_32FC1, targetsCpu.data_ptr());
-        masks = toClassesMapsThreshold(targetMat, {}, thresholds);
-        for (auto ii = 0U; ii < masks.size(); ++ii)
+        auto masksTarget = toClassesMapsThreshold(targetMat, {}, thresholds);
+        for (auto ii = 0U; ii < masksTarget.size(); ++ii)
         {
-           cv::imshow(std::string("Target_") + std::to_string(ii % classColors.size()) + "_" + std::to_string(ii / classColors.size()), masks[ii]);
+           cv::imshow(std::string("Target_") + std::to_string(ii % classColors.size()) + "_" + std::to_string(ii / classColors.size()), masksTarget[ii]);
+        }
+
+        for (auto ii = 0U; ii < masksPredict.size(); ++ii)
+        {
+            cv::Mat diffMat;
+            cv::absdiff(masksTarget[ii], masksPredict[ii], diffMat);
+            lossesByClass[ii % classColors.size()] += (cv::sum(diffMat/255.0) / (masksTarget[ii].rows * masksTarget[ii].cols))[0] / classColors.size();
         }
         cv::waitKey(1);
         ++i;
       }, [&](std::map<std::string, float> metrics)
       {
+        for (auto ii = 0; ii < lossesByClass.size(); ++ii)
+        {
+            lossesByClass[ii] /= i;
+            std::cout << "Diff for " << std::to_string(ii % lossesByClass.size()) + "_" + std::to_string(ii / lossesByClass.size()) << ": " << lossesByClass[ii] << std::endl;
+        }
         static std::map<std::string, cv::Scalar> chartColors = {std::make_pair("bce", cv::Scalar(0x00, 0x00, 0xFF)),
                                                                 std::make_pair("dice", cv::Scalar(0x00, 0xFF, 0x00)),
                                                                 std::make_pair("loss", cv::Scalar(0xFF, 0x00, 0x00))};
